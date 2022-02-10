@@ -1,0 +1,247 @@
+---
+title: "Homework4_2"
+author: "Gabriel Deards"
+date: "2/6/2022"
+output: 
+  html_document: 
+    toc: yes
+---
+
+## Question 1
+*Download more FASTQ files from the Gierlinski data set so that you have all the technical replicates for the first three WT and SNF2 samples (= 6x7 FASTQ files). Place each set of 7 technical replicates into one sensibly named folder respectively. (1pt)*
+
+I realize far too late that I missed a crucial part of this question, the helpful suggestion to keep each of the technical replicate sets separated in different folders. Given the amount of time necessary to redownload these file, and the fact that for some reason I was no longer able to connect to the SCU architecture from my apartment (this is all being written courtesy of my building's laundryroom wifi) I was unable to double back and move the various files into appropriate folders before downloading them and performing some downstream steps. Mea culpa, will DEFINITELY not make that mistake again. Fortunately I think that my remaining work is still correct, and will present it here as best I can without further kvetching comment.
+
+First, I engage in a similar bit of download prep by using egrep in a loop looking for all WT and SNF2 records with sample numbers 1 2 or 3. I then cut these in a similar manner to the previous assignment, and output them to a file called 'urls_2.txt'. I also append the same FTP variable, and check to make sure that I have exactly 42 lines (6*7).
+
+```{bash exercise_2_download_prep, eval=FALSE}
+# Checking to make sure the output is correct
+[gmd4002@buddy hw_4]$ for i in {1..3}; do egrep "WT\s$i\s" Joined_ERP004763_sample_mapping.tsv; egrep "SNF2\s$i\s" Joined_ERP004763_sample_mapping.tsv | head; done 
+ERR458493 1 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458493/ERR458493.fastq.gz
+ERR458494 2 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458494/ERR458494.fastq.gz
+ERR458495 3 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458495/ERR458495.fastq.gz
+ERR458496 4 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458496/ERR458496.fastq.gz
+ERR458497 5 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458497/ERR458497.fastq.gz
+ERR458498 6 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458498/ERR458498.fastq.gz
+ERR458499 7 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458499/ERR458499.fastq.gz
+ERR458500 1 SNF2 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458500/ERR458500.fastq.gz
+ERR458501 2 SNF2 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458501/ERR458501.fastq.gz
+ERR458502 3 SNF2 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458502/ERR458502.fastq.gz
+ERR458503 4 SNF2 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458503/ERR458503.fastq.gz
+ERR458504 5 SNF2 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458504/ERR458504.fastq.gz
+ERR458505 6 SNF2 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458505/ERR458505.fastq.gz
+ERR458506 7 SNF2 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458506/ERR458506.fastq.gz
+ERR458878 1 WT 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458878/ERR458878.fastq.gz
+ERR458879 2 WT 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458879/ERR458879.fastq.gz
+ERR458880 3 WT 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458880/ERR458880.fastq.gz
+ERR458881 4 WT 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458881/ERR458881.fastq.gz
+ERR458882 5 WT 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458882/ERR458882.fastq.gz
+ERR458883 6 WT 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458883/ERR458883.fastq.gz
+ERR458884 7 WT 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458884/ERR458884.fastq.gz
+ERR458507 1 SNF2 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458507/ERR458507.fastq.gz
+ERR458508 2 SNF2 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458508/ERR458508.fastq.gz
+ERR458509 3 SNF2 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458509/ERR458509.fastq.gz
+ERR458510 4 SNF2 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458510/ERR458510.fastq.gz
+ERR458511 5 SNF2 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458511/ERR458511.fastq.gz
+ERR458512 6 SNF2 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458512/ERR458512.fastq.gz
+ERR458513 7 SNF2 2 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458513/ERR458513.fastq.gz
+ERR458885 1 WT 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458885/ERR458885.fastq.gz
+ERR458886 2 WT 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458886/ERR458886.fastq.gz
+ERR458887 3 WT 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458887/ERR458887.fastq.gz
+ERR458888 4 WT 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458888/ERR458888.fastq.gz
+ERR458889 5 WT 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458889/ERR458889.fastq.gz
+ERR458890 6 WT 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458890/ERR458890.fastq.gz
+ERR458891 7 WT 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458891/ERR458891.fastq.gz
+ERR458514 1 SNF2 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458514/ERR458514.fastq.gz
+ERR458515 2 SNF2 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458515/ERR458515.fastq.gz
+ERR458516 3 SNF2 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458516/ERR458516.fastq.gz
+ERR458517 4 SNF2 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458517/ERR458517.fastq.gz
+ERR458518 5 SNF2 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458518/ERR458518.fastq.gz
+ERR458519 6 SNF2 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458519/ERR458519.fastq.gz
+ERR458520 7 SNF2 3 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458520/ERR458520.fastq.gz
+
+[gmd4002@buddy hw_4]$ for i in {1..3}; do egrep "WT\s$i\s" Joined_ERP004763_sample_mapping.tsv; egrep "SNF2\s$i\s" Joined_ERP004763_sample_mapping.tsv | head; done | cut -d ' ' -f 5 > urls_2.txt
+
+
+# Appending $FTP
+[gmd4002@buddy hw_4]$ while read line; do echo ${FTP}${line}; done < urls_2.txt > ftp_urls_2.txt
+
+# Checking we have the right number of records.
+[gmd4002@buddy hw_4]$ wc -l ftp_urls_2.txt 
+42 ftp_urls_2.txt
+```
+
+I then move this to my separate folder for exercise 2, and perform the same wget loop. This took a considerable amount of time, and will refrain from posting the output as it is much the same as before.
+
+```{bash exercise_2_wget, eval=FALSE}
+[gmd4002@buddy hw_4]$ cp ftp_urls_2.txt exercise_2/ftp_urls_2.txt
+[gmd4002@buddy hw_4]$ cd exercise_2/
+[gmd4002@buddy exercise_2]$ ls
+ftp_urls_2.txt
+
+[gmd4002@buddy exercise_2]$ while read line; do wget "${line}"; done < ftp_urls_2.txt
+
+# quite a lot of output
+
+# Checking to see that all the files are there.
+[gmd4002@buddy exercise_2]$ ls
+ERR458493.fastq.gz  ERR458504.fastq.gz  ERR458515.fastq.gz  ERR458883.fastq.gz
+ERR458494.fastq.gz  ERR458505.fastq.gz  ERR458516.fastq.gz  ERR458884.fastq.gz
+ERR458495.fastq.gz  ERR458506.fastq.gz  ERR458517.fastq.gz  ERR458885.fastq.gz
+ERR458496.fastq.gz  ERR458507.fastq.gz  ERR458518.fastq.gz  ERR458886.fastq.gz
+ERR458497.fastq.gz  ERR458508.fastq.gz  ERR458519.fastq.gz  ERR458887.fastq.gz
+ERR458498.fastq.gz  ERR458509.fastq.gz  ERR458520.fastq.gz  ERR458888.fastq.gz
+ERR458499.fastq.gz  ERR458510.fastq.gz  ERR458878.fastq.gz  ERR458889.fastq.gz
+ERR458500.fastq.gz  ERR458511.fastq.gz  ERR458879.fastq.gz  ERR458890.fastq.gz
+ERR458501.fastq.gz  ERR458512.fastq.gz  ERR458880.fastq.gz  ERR458891.fastq.gz
+ERR458502.fastq.gz  ERR458513.fastq.gz  ERR458881.fastq.gz  ftp_urls_2.txt
+ERR458503.fastq.gz  ERR458514.fastq.gz  ERR458882.fastq.gz
+
+```
+
+## Question 2
+*Write a for-loop that will run FastQC on all (6x7) of the FASTQ files that you have downloaded from the Gierlinski dataset. Select one sample for which you write an additional for-loop that will: *
+- *run TrimGalore*
+- *run FastQC on the trimmed datasets. (2pts)*
+
+Once again, bare in mind that I missed a crucial part of the setup for this set of problems, and perform this action all in the same folder. Unfortunate.
+I run a simple loop to extract all files in the current directory using *.gz. This could have also been done in subdirectories by changing the regex to look for subdirectory files of that type (e.g. */*.gz. Can't connect to test this right now but I assume that should be reasonably close to make the loop check subdirectories for .gz files)
+
+```{bash fastqc, eval=FALSE}
+
+# Load fastqc
+[gmd4002@buddy exercise_2]$ spack load fastqc
+
+[gmd4002@buddy exercise_2]$ for file in *.gz; do fastqc $file --extract; done
+
+# lots of output
+
+[gmd4002@buddy exercise_2]$ ls
+ERR458493_fastqc       ERR458507_fastqc.html  ERR458878_fastqc.zip
+ERR458493_fastqc.html  ERR458507_fastqc.zip   ERR458878.fastq.gz
+ERR458493_fastqc.zip   ERR458507.fastq.gz     ERR458879_fastqc
+ERR458493.fastq.gz     ERR458508_fastqc       ERR458879_fastqc.html
+ERR458494_fastqc       ERR458508_fastqc.html  ERR458879_fastqc.zip
+ERR458494_fastqc.html  ERR458508_fastqc.zip   ERR458879.fastq.gz
+ERR458494_fastqc.zip   ERR458508.fastq.gz     ERR458880_fastqc
+ERR458494.fastq.gz     ERR458509_fastqc       ERR458880_fastqc.html
+ERR458495_fastqc       ERR458509_fastqc.html  ERR458880_fastqc.zip
+ERR458495_fastqc.html  ERR458509_fastqc.zip   ERR458880.fastq.gz
+ERR458495_fastqc.zip   ERR458509.fastq.gz     ERR458881_fastqc
+ERR458495.fastq.gz     ERR458510_fastqc       ERR458881_fastqc.html
+ERR458496_fastqc       ERR458510_fastqc.html  ERR458881_fastqc.zip
+ERR458496_fastqc.html  ERR458510_fastqc.zip   ERR458881.fastq.gz
+ERR458496_fastqc.zip   ERR458510.fastq.gz     ERR458882_fastqc
+ERR458496.fastq.gz     ERR458511_fastqc       ERR458882_fastqc.html
+ERR458497_fastqc       ERR458511_fastqc.html  ERR458882_fastqc.zip
+ERR458497_fastqc.html  ERR458511_fastqc.zip   ERR458882.fastq.gz
+ERR458497_fastqc.zip   ERR458511.fastq.gz     ERR458883_fastqc
+ERR458497.fastq.gz     ERR458512_fastqc       ERR458883_fastqc.html
+ERR458498_fastqc       ERR458512_fastqc.html  ERR458883_fastqc.zip
+ERR458498_fastqc.html  ERR458512_fastqc.zip   ERR458883.fastq.gz
+ERR458498_fastqc.zip   ERR458512.fastq.gz     ERR458884_fastqc
+ERR458498.fastq.gz     ERR458513_fastqc       ERR458884_fastqc.html
+ERR458499_fastqc       ERR458513_fastqc.html  ERR458884_fastqc.zip
+ERR458499_fastqc.html  ERR458513_fastqc.zip   ERR458884.fastq.gz
+ERR458499_fastqc.zip   ERR458513.fastq.gz     ERR458885_fastqc
+ERR458499.fastq.gz     ERR458514_fastqc       ERR458885_fastqc.html
+ERR458500_fastqc       ERR458514_fastqc.html  ERR458885_fastqc.zip
+ERR458500_fastqc.html  ERR458514_fastqc.zip   ERR458885.fastq.gz
+ERR458500_fastqc.zip   ERR458514.fastq.gz     ERR458886_fastqc
+ERR458500.fastq.gz     ERR458515_fastqc       ERR458886_fastqc.html
+ERR458501_fastqc       ERR458515_fastqc.html  ERR458886_fastqc.zip
+ERR458501_fastqc.html  ERR458515_fastqc.zip   ERR458886.fastq.gz
+ERR458501_fastqc.zip   ERR458515.fastq.gz     ERR458887_fastqc
+ERR458501.fastq.gz     ERR458516_fastqc       ERR458887_fastqc.html
+ERR458502_fastqc       ERR458516_fastqc.html  ERR458887_fastqc.zip
+ERR458502_fastqc.html  ERR458516_fastqc.zip   ERR458887.fastq.gz
+ERR458502_fastqc.zip   ERR458516.fastq.gz     ERR458888_fastqc
+ERR458502.fastq.gz     ERR458517_fastqc       ERR458888_fastqc.html
+ERR458503_fastqc       ERR458517_fastqc.html  ERR458888_fastqc.zip
+ERR458503_fastqc.html  ERR458517_fastqc.zip   ERR458888.fastq.gz
+ERR458503_fastqc.zip   ERR458517.fastq.gz     ERR458889_fastqc
+ERR458503.fastq.gz     ERR458518_fastqc       ERR458889_fastqc.html
+ERR458504_fastqc       ERR458518_fastqc.html  ERR458889_fastqc.zip
+ERR458504_fastqc.html  ERR458518_fastqc.zip   ERR458889.fastq.gz
+ERR458504_fastqc.zip   ERR458518.fastq.gz     ERR458890_fastqc
+ERR458504.fastq.gz     ERR458519_fastqc       ERR458890_fastqc.html
+ERR458505_fastqc       ERR458519_fastqc.html  ERR458890_fastqc.zip
+ERR458505_fastqc.html  ERR458519_fastqc.zip   ERR458890.fastq.gz
+ERR458505_fastqc.zip   ERR458519.fastq.gz     ERR458891_fastqc
+ERR458505.fastq.gz     ERR458520_fastqc       ERR458891_fastqc.html
+ERR458506_fastqc       ERR458520_fastqc.html  ERR458891_fastqc.zip
+ERR458506_fastqc.html  ERR458520_fastqc.zip   ERR458891.fastq.gz
+ERR458506_fastqc.zip   ERR458520.fastq.gz     ftp_urls_2.txt
+ERR458506.fastq.gz     ERR458878_fastqc
+ERR458507_fastqc       ERR458878_fastqc.html
+
+```
+  
+Here I was fortunate enough to notice that, while I hadn't managed to keep the various samples together in their own folder, that some of them were still able to be called in a loop using some clever regular expressions. WT 1 for example was numbered ERR45849[3-9], so I employed that fact to generate the various trimmed datasets, and subject them again to FastQC.
+  
+```{bash trim_for_loop, eval=FALSE}
+# load trimgalore
+[gmd4002@buddy exercise_2]$ spack load -r trimgalore
+
+[gmd4002@buddy exercise_2]$ for i in {3..9}; do
+trim_galore --illumina ERR45849$i.fastq.gz;
+fastqc ERR45849$i_trimmed.fq.gz --extract
+
+```
+
+## Question 3
+
+*Describe one detail of the QC results that changes after TrimGalore and one result that stays the same and explain why. (2pts)*
+
+One obvious change is the sequence length distribution. The trimming process removes adapters from the various reads, causing the distribution of lengths for the trimmed sample to be much more broadly distributed. 
+
+One thing that stays the same is the per-base N content. Given the fact that the fastq file in question was of reasonably good quality, it had no N content to speak of as all of the base calls could be made with confidence. Trimming your results would not have an affect on this. 
+
+## Question 4 
+*Combine the initial FastQC results for all 6x7 FASTQ files into one document using MultiQC (Links to an external site.). You can load the tool using spack load -r py-multiqc. Export one image of either of the results where the SNF2 samples are highlighted in a different color than the WT samples and add it to this report. (2pts)*
+
+To start, we first load multiqc, and, given that everything is in the same directory, we can simply run multiqc . and have all of our previously generated files be combined into one document without too much fuss.
+
+```{bash MultiQC, eval=FALSE}
+
+[gmd4002@buddy exercise_2]$ spack load -r py-multiqc
+[gmd4002@buddy exercise_2]$ multiqc .
+[WARNING]         multiqc : MultiQC Version v1.11 now available!
+[INFO   ]         multiqc : This is MultiQC v1.7 (7d61ef5)
+[INFO   ]         multiqc : Template    : default
+[INFO   ]         multiqc : Searching '.'
+Searching 872 files..  [####################################]  100%             
+[INFO   ]        cutadapt : Found 3 reports
+[INFO   ]          fastqc : Found 42 reports
+[INFO   ]         multiqc : Compressing plot data
+[INFO   ]         multiqc : Report      : multiqc_report.html
+[INFO   ]         multiqc : Data        : multiqc_data
+[INFO   ]         multiqc : MultiQC complete
+
+[gmd4002@buddy exercise_2]$ cd multiqc_data/
+[gmd4002@buddy multiqc_data]$ ls
+multiqc_cutadapt.txt  multiqc_data.json  multiqc_fastqc.txt  multiqc_general_stats.txt  multiqc.log  multiqc_sources.txt
+
+```
+
+For the MultiQC results themselves, we again run into the problem of having all of our samples be incorrectly labeled due to not being in their proper folders originally. This is rectified fortunately again by the use of regular expressions to catch all the WT samples, and color them red in our figures. 
+
+## Question 5
+*Based on the QC, would you be justified in combining any of the FASTQ files given that they are technical replicates? (1pt)*
+
+I suppose in theory it should be fine, but the safest thing to do would be to first perform some comparative analysis before committing to anything. You can align, get counts, compare expressions between the various replicates; and at that point make a decision whether or not to combine. But if you have the time and bandwidth to qc separately that is probably safest, as one of the replicates can have some technical issue you were unaware of beforehand. So assuming your results are of reasonable quality, and you've done a preliminary check or two comparing your results to one another, you can probably combine them.
+
+## Question 6
+*Even if the answer to the previous question is “no”, what command(s) would you use to combine the several FASTQ files into one? (1pt)*
+
+Simplest way to do it would be to concatenate your fastq files, seeing as they don't have headers or anything else complicated to worry about. They can be appended to one another using a wildcard character (assuming they're all in the same directory)
+
+```{bash big_fastq, eval=FALSE}
+
+# Simples way to do it would be to:
+cat *.fastq > big_file.fastq
+
+```
+
+
+

@@ -1,0 +1,359 @@
+---
+title: "Homework 4"
+author: "Gabriel Deards"
+date: "2/6/2022"
+output: 
+  html_document: 
+    toc: yes
+---
+
+## Question 1:
+*Write a for-loop to download all fastq files of WT biological replicate no. 2 of the Gierlinski* *RNA-seq data set (UNIX). Try to have a solution that’s as generally applicable as possible. (3pts)* 
+
+
+First I will create a homework directory where I can safely store my files.
+
+```{bash directory_setup, eval=FALSE}
+
+[gmd4002@buddy ~]$ cd work/
+[gmd4002@buddy work]$ mkdir hw
+[gmd4002@buddy work]$ cd hw
+[gmd4002@buddy hw]$ mkdir hw_4
+[gmd4002@buddy hw]$ cd hw_4/
+
+```
+
+I then download both tsv files to my new folder, so I can use them later.
+
+```{bash, get_tsvs, eval=FALSE}
+
+[gmd4002@buddy hw_4]$ wget https://figshare.com/ndownloader/files/2194841
+--2022-02-06 14:25:18--  https://figshare.com/ndownloader/files/2194841
+Resolving figshare.com (figshare.com)... 52.215.28.74, 52.19.41.79, 2a05:d018:1f4:d000:493b:57c7:b3dd:b9b2, ...
+Connecting to figshare.com (figshare.com)|52.215.28.74|:443... connected.
+HTTP request sent, awaiting response... 302 Found
+Location: https://s3-eu-west-1.amazonaws.com/pfigshare-u-files/2194841/ERP004763_sample_mapping.tsv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIYCQYOYV5JSSROOA/20220206/eu-west-1/s3/aws4_request&X-Amz-Date=20220206T192519Z&X-Amz-Expires=10&X-Amz-SignedHeaders=host&X-Amz-Signature=bef04d873f8dee71fb42d15b56aba67b92e82469b8c92fcac0ae5771011fe817 [following]
+--2022-02-06 14:25:19--  https://s3-eu-west-1.amazonaws.com/pfigshare-u-files/2194841/ERP004763_sample_mapping.tsv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIYCQYOYV5JSSROOA/20220206/eu-west-1/s3/aws4_request&X-Amz-Date=20220206T192519Z&X-Amz-Expires=10&X-Amz-SignedHeaders=host&X-Amz-Signature=bef04d873f8dee71fb42d15b56aba67b92e82469b8c92fcac0ae5771011fe817
+Resolving s3-eu-west-1.amazonaws.com (s3-eu-west-1.amazonaws.com)... 52.218.62.19
+Connecting to s3-eu-west-1.amazonaws.com (s3-eu-west-1.amazonaws.com)|52.218.62.19|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 12675 (12K) [binary/octet-stream]
+Saving to: ‘2194841’
+
+100%[======================================>] 12,675      --.-K/s   in 0s      
+
+2022-02-06 14:25:19 (153 MB/s) - ‘2194841’ saved [12675/12675]
+
+[gmd4002@buddy hw_4]$ wget -O ERP004763_sample_mapping.tsv 'https://figshare.com/ndownloader/files/2194841'
+--2022-02-06 15:02:46--  https://figshare.com/ndownloader/files/2194841
+Resolving figshare.com (figshare.com)... 52.215.28.74, 52.19.41.79, 2a05:d018:1f4:d003:9f52:22d8:9e42:ba15, ...
+Connecting to figshare.com (figshare.com)|52.215.28.74|:443... connected.
+HTTP request sent, awaiting response... 302 Found
+Location: https://s3-eu-west-1.amazonaws.com/pfigshare-u-files/2194841/ERP004763_sample_mapping.tsv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIYCQYOYV5JSSROOA/20220206/eu-west-1/s3/aws4_request&X-Amz-Date=20220206T200246Z&X-Amz-Expires=10&X-Amz-SignedHeaders=host&X-Amz-Signature=eef18ec71869fe934d4ff5b20577874f375d0c08b91902c1cdbf31c19fdcc84b [following]
+--2022-02-06 15:02:46--  https://s3-eu-west-1.amazonaws.com/pfigshare-u-files/2194841/ERP004763_sample_mapping.tsv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIYCQYOYV5JSSROOA/20220206/eu-west-1/s3/aws4_request&X-Amz-Date=20220206T200246Z&X-Amz-Expires=10&X-Amz-SignedHeaders=host&X-Amz-Signature=eef18ec71869fe934d4ff5b20577874f375d0c08b91902c1cdbf31c19fdcc84b
+Resolving s3-eu-west-1.amazonaws.com (s3-eu-west-1.amazonaws.com)... 52.218.37.187
+Connecting to s3-eu-west-1.amazonaws.com (s3-eu-west-1.amazonaws.com)|52.218.37.187|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 12675 (12K) [binary/octet-stream]
+Saving to: ‘ERP004763_sample_mapping.tsv’
+
+100%[======================================>] 12,675      --.-K/s   in 0s      
+
+2022-02-06 15:02:47 (146 MB/s) - ‘ERP004763_sample_mapping.tsv’ saved [12675/12675]
+
+[gmd4002@buddy hw_4]$ ls
+ERP004763_sample_mapping.tsv  PRJEB5348.txt
+
+```
+
+Both of these files have a run accession column, so I can use join (after sorting both files) to combine them into one for ease of use later.
+
+```{bash join_files, eval=FALSE}
+[gmd4002@buddy hw_4]$ join -1 1 -2 1 <(sort -k 1 ERP004763_sample_mapping.tsv) <(sort -k 1 PRJEB5348.txt)  | head
+ERR458493 1 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458493/ERR458493.fastq.gz
+ERR458494 2 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458494/ERR458494.fastq.gz
+ERR458495 3 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458495/ERR458495.fastq.gz
+ERR458496 4 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458496/ERR458496.fastq.gz
+ERR458497 5 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458497/ERR458497.fastq.gz
+ERR458498 6 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458498/ERR458498.fastq.gz
+ERR458499 7 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458499/ERR458499.fastq.gz
+ERR458500 1 SNF2 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458500/ERR458500.fastq.gz
+ERR458501 2 SNF2 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458501/ERR458501.fastq.gz
+ERR458502 3 SNF2 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458502/ERR458502.fastq.gz
+[gmd4002@buddy hw_4]$ join -1 1 -2 1 <(sort -k 1 ERP004763_sample_mapping.tsv) <(sort -k 1 PRJEB5348.txt)  > Joined_ERP004763_sample_mapping.tsv 
+[gmd4002@buddy hw_4]$ ls
+ERP004763_sample_mapping.tsv  Joined_ERP004763_sample_mapping.tsv  PRJEB5348.txt
+
+[gmd4002@buddy hw_4]$ head Joined_ERP004763_sample_mapping.tsv 
+ERR458493 1 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458493/ERR458493.fastq.gz
+ERR458494 2 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458494/ERR458494.fastq.gz
+ERR458495 3 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458495/ERR458495.fastq.gz
+ERR458496 4 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458496/ERR458496.fastq.gz
+ERR458497 5 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458497/ERR458497.fastq.gz
+ERR458498 6 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458498/ERR458498.fastq.gz
+ERR458499 7 WT 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458499/ERR458499.fastq.gz
+ERR458500 1 SNF2 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458500/ERR458500.fastq.gz
+ERR458501 2 SNF2 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458501/ERR458501.fastq.gz
+ERR458502 3 SNF2 1 ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458502/ERR458502.fastq.gz
+```
+
+Next, working from this joined file, we can employ some regular expressions to single out only those records corresponding to WT biological replicate number 2. We can then pipe those lines to a cut statement that will extract the url for each file, and write that to a new file called 'urls.txt'
+
+```{bash get_urls, eval=FALSE}
+# Check to make sure the output is correct
+[gmd4002@buddy hw_4]$ egrep 'WT 2 ' Joined_ERP004763_sample_mapping.tsv | cut -d ' ' -f 5 | head
+ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458878/ERR458878.fastq.gz
+ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458879/ERR458879.fastq.gz
+ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458880/ERR458880.fastq.gz
+ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458881/ERR458881.fastq.gz
+ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458882/ERR458882.fastq.gz
+ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458883/ERR458883.fastq.gz
+ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458884/ERR458884.fastq.gz
+
+# Write to a file
+[gmd4002@buddy hw_4]$ egrep 'WT 2 ' Joined_ERP004763_sample_mapping.tsv | cut -d ' ' -f 5 > urls.txt
+
+
+```
+
+To make the downloads easier, we are going to append 'ftp://' to the front of each URL to help make the download easier. To do this, I stored that string as a variable, and concattenated it with the original lines from urls.txt in an echo statement in the while loop below. I then wrote this to another file, 'ftp_urls.txt'
+
+```{bash ftp_append, eval=FALSE}
+
+# Setting up the variable
+[gmd4002@buddy hw_4]$ FTP="ftp://"
+[gmd4002@buddy hw_4]$ echo $FTP
+ftp://
+
+# Checking the output of my loop
+[gmd4002@buddy hw_4]$ while read line; do echo ${FTP}${line}; done < urls.txt 
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458878/ERR458878.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458879/ERR458879.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458880/ERR458880.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458881/ERR458881.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458882/ERR458882.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458883/ERR458883.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458884/ERR458884.fastq.gz
+
+# Writing the output to a file
+[gmd4002@buddy hw_4]$ while read line; do echo ${FTP}${line}; done < urls.txt > ftp_urls.txt
+[gmd4002@buddy hw_4]$ cat ftp_urls.txt 
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458878/ERR458878.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458879/ERR458879.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458880/ERR458880.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458881/ERR458881.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458882/ERR458882.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458883/ERR458883.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458884/ERR458884.fastq.gz
+
+
+```
+
+
+Finally, we can actually download the files, which I do using a very similar while loop seen below.
+By employing join to combine the two tsv files, we are able to use regular expressions to select only those replicates we are interested in, and feed our wget loop with a file we populated with the associated urls. This is about as generallly applicable as I can make this at present, though further polishing and automating could of course be done. I hope at least I've demonstrated that nothing here is hard-coded, at least.
+
+
+```{bash wget_download, eval=FALSE}
+[gmd4002@buddy hw_4]$ while read line; do wget "${line}"; done < ftp_urls.txt 
+--2022-02-06 15:42:44--  ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458878/ERR458878.fastq.gz
+           => ‘ERR458878.fastq.gz.1’
+Resolving ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)... 193.62.197.74
+Connecting to ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)|193.62.197.74|:21... connected.
+Logging in as anonymous ... Logged in!
+==> SYST ... done.    ==> PWD ... done.
+==> TYPE I ... done.  ==> CWD (1) /vol1/fastq/ERR458/ERR458878 ... done.
+==> SIZE ERR458878.fastq.gz ... 79814923
+==> PASV ... done.    ==> RETR ERR458878.fastq.gz ... done.
+Length: 79814923 (76M) (unauthoritative)
+
+100%[==============================================>] 79,814,923  17.2MB/s   in 13s    
+
+2022-02-06 15:42:57 (6.04 MB/s) - ‘ERR458878.fastq.gz.1’ saved [79814923]
+
+--2022-02-06 15:42:57--  ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458879/ERR458879.fastq.gz
+           => ‘ERR458879.fastq.gz’
+Resolving ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)... 193.62.197.74
+Connecting to ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)|193.62.197.74|:21... connected.
+Logging in as anonymous ... Logged in!
+==> SYST ... done.    ==> PWD ... done.
+==> TYPE I ... done.  ==> CWD (1) /vol1/fastq/ERR458/ERR458879 ... done.
+==> SIZE ERR458879.fastq.gz ... 78724818
+==> PASV ... done.    ==> RETR ERR458879.fastq.gz ... done.
+Length: 78724818 (75M) (unauthoritative)
+
+100%[==============================================>] 78,724,818  16.9MB/s   in 5.7s   
+
+2022-02-06 15:43:04 (13.2 MB/s) - ‘ERR458879.fastq.gz’ saved [78724818]
+
+--2022-02-06 15:43:04--  ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458880/ERR458880.fastq.gz
+           => ‘ERR458880.fastq.gz’
+Resolving ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)... 193.62.197.74
+Connecting to ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)|193.62.197.74|:21... connected.
+Logging in as anonymous ... Logged in!
+==> SYST ... done.    ==> PWD ... done.
+==> TYPE I ... done.  ==> CWD (1) /vol1/fastq/ERR458/ERR458880 ... done.
+==> SIZE ERR458880.fastq.gz ... 78532851
+==> PASV ... done.    ==> RETR ERR458880.fastq.gz ... done.
+Length: 78532851 (75M) (unauthoritative)
+
+100%[==============================================>] 78,532,851  17.9MB/s   in 7.4s   
+
+2022-02-06 15:43:13 (10.1 MB/s) - ‘ERR458880.fastq.gz’ saved [78532851]
+
+--2022-02-06 15:43:13--  ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458881/ERR458881.fastq.gz
+           => ‘ERR458881.fastq.gz’
+Resolving ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)... 193.62.197.74
+Connecting to ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)|193.62.197.74|:21... connected.
+Logging in as anonymous ... Logged in!
+==> SYST ... done.    ==> PWD ... done.
+==> TYPE I ... done.  ==> CWD (1) /vol1/fastq/ERR458/ERR458881 ... done.
+==> SIZE ERR458881.fastq.gz ... 71727639
+==> PASV ... done.    ==> RETR ERR458881.fastq.gz ... done.
+Length: 71727639 (68M) (unauthoritative)
+
+100%[==============================================>] 71,727,639  28.7MB/s   in 2.4s   
+
+2022-02-06 15:43:17 (28.7 MB/s) - ‘ERR458881.fastq.gz’ saved [71727639]
+
+--2022-02-06 15:43:17--  ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458882/ERR458882.fastq.gz
+           => ‘ERR458882.fastq.gz’
+Resolving ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)... 193.62.197.74
+Connecting to ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)|193.62.197.74|:21... connected.
+Logging in as anonymous ... Logged in!
+==> SYST ... done.    ==> PWD ... done.
+==> TYPE I ... done.  ==> CWD (1) /vol1/fastq/ERR458/ERR458882 ... done.
+==> SIZE ERR458882.fastq.gz ... 61755512
+==> PASV ... done.    ==> RETR ERR458882.fastq.gz ... done.
+Length: 61755512 (59M) (unauthoritative)
+
+100%[==============================================>] 61,755,512  5.55MB/s   in 2m 3s  
+
+2022-02-06 15:45:21 (489 KB/s) - ‘ERR458882.fastq.gz’ saved [61755512]
+
+--2022-02-06 15:45:21--  ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458883/ERR458883.fastq.gz
+           => ‘ERR458883.fastq.gz’
+Resolving ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)... 193.62.197.74
+Connecting to ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)|193.62.197.74|:21... connected.
+Logging in as anonymous ... Logged in!
+==> SYST ... done.    ==> PWD ... done.
+==> TYPE I ... done.  ==> CWD (1) /vol1/fastq/ERR458/ERR458883 ... done.
+==> SIZE ERR458883.fastq.gz ... 62361845
+==> PASV ... done.    ==> RETR ERR458883.fastq.gz ... done.
+Length: 62361845 (59M) (unauthoritative)
+
+100%[==============================================>] 62,361,845  16.0MB/s   in 23s    
+
+2022-02-06 15:45:45 (2.62 MB/s) - ‘ERR458883.fastq.gz’ saved [62361845]
+
+--2022-02-06 15:45:45--  ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR458/ERR458884/ERR458884.fastq.gz
+           => ‘ERR458884.fastq.gz’
+Resolving ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)... 193.62.197.74
+Connecting to ftp.sra.ebi.ac.uk (ftp.sra.ebi.ac.uk)|193.62.197.74|:21... connected.
+Logging in as anonymous ... Logged in!
+==> SYST ... done.    ==> PWD ... done.
+==> TYPE I ... done.  ==> CWD (1) /vol1/fastq/ERR458/ERR458884 ... done.
+==> SIZE ERR458884.fastq.gz ... 79365034
+==> PASV ... done.    ==> RETR ERR458884.fastq.gz ... done.
+Length: 79365034 (76M) (unauthoritative)
+
+100%[==============================================>] 79,365,034  9.39MB/s   in 9.4s   
+
+2022-02-06 15:45:56 (8.09 MB/s) - ‘ERR458884.fastq.gz’ saved [79365034]
+
+
+```
+
+Upon downloading these files, I decided to do a bit of housekeeping as I knew I'd need to download 42 more for the next set of problems on this homework. So I created two new directories, and pushed the downloaded files to exercise_1. 
+
+```{bash housekeeping, eval=FALSE}
+[gmd4002@buddy hw_4]$ ls
+ERP004763_sample_mapping.tsv  ERR458881.fastq.gz  Joined_ERP004763_sample_mapping.tsv
+ERR458878.fastq.gz            ERR458882.fastq.gz  PRJEB5348.txt
+ERR458878.fastq.gz.1          ERR458883.fastq.gz  urls.txt
+ERR458879.fastq.gz            ERR458884.fastq.gz
+ERR458880.fastq.gz            ftp_urls.txt
+
+[gmd4002@buddy hw_4]$ mkdir exercise_1
+[gmd4002@buddy hw_4]$ mkdir exercise_2
+[gmd4002@buddy hw_4]$ ls
+ERP004763_sample_mapping.tsv  ERR458881.fastq.gz  exercise_2
+ERR458878.fastq.gz            ERR458882.fastq.gz  ftp_urls.txt
+ERR458878.fastq.gz.1          ERR458883.fastq.gz  Joined_ERP004763_sample_mapping.tsv
+ERR458879.fastq.gz            ERR458884.fastq.gz  PRJEB5348.txt
+ERR458880.fastq.gz            exercise_1          urls.txt
+
+[gmd4002@buddy hw_4]$ rm ERR458878.fastq.gz.1 
+[gmd4002@buddy hw_4]$ ls
+ERP004763_sample_mapping.tsv  ERR458882.fastq.gz  ftp_urls.txt
+ERR458878.fastq.gz            ERR458883.fastq.gz  Joined_ERP004763_sample_mapping.tsv
+ERR458879.fastq.gz            ERR458884.fastq.gz  PRJEB5348.txt
+ERR458880.fastq.gz            exercise_1          urls.txt
+ERR458881.fastq.gz            exercise_2
+
+[gmd4002@buddy hw_4]$ mv *.gz exercise_1
+[gmd4002@buddy hw_4]$ ls
+ERP004763_sample_mapping.tsv  ftp_urls.txt                         urls.txt
+exercise_1                    Joined_ERP004763_sample_mapping.tsv
+exercise_2                    PRJEB5348.txt
+
+[gmd4002@buddy hw_4]$ cd exercise_1
+[gmd4002@buddy exercise_1]$ ls
+ERR458878.fastq.gz  ERR458880.fastq.gz  ERR458882.fastq.gz  ERR458884.fastq.gz
+ERR458879.fastq.gz  ERR458881.fastq.gz  ERR458883.fastq.gz
+```
+
+
+## Question 2
+
+*Why are there multiple fastq files for sample WT_2? What does each file represent? (1pt)*
+
+Each file represents data obtained from a different lane on the Illumina flow cell. They are in this case all duplicates of the WT biological replicate number 2, and so each file represents that specific duplicate's generated read data.
+
+
+## Question 3
+*Count the number of lines in each FASTQ file and keep a note of the results (UNIX). The zcat command allows you to see the contents of a gzipped file. A fastq file has 4 lines per read. Write a second for-loop where you determine the number of reads per file. (3pts)*
+
+Given that these are fastq files, we know that each record is comprised of 4 lines. That said, it doesn't hurt to check and be sure, so I check the contents of the file using head. I also perform two different methods of checking the number of records in each file, either by searching for a line beginning with '@ERR', or merely dividing the total number of lines in each file by 4. Theoretically these should both be the same value, and my test file confirms this to be the case.
+
+```{bash line_count_test, eval=FALSE}
+
+[gmd4002@buddy exercise_1]$ zcat ERR458878.fastq.gz |  head
+
+[gmd4002@buddy exercise_1]$ zcat ERR458878.fastq.gz |  wc -l 
+5870276
+
+[gmd4002@buddy exercise_1]$ zcat ERR458878.fastq.gz | egrep '^@ERR' | wc -l
+1467569
+
+[gmd4002@buddy exercise_1]$ linecount=$((`zcat ERR458878.fastq.gz |  wc -l` / 4))
+[gmd4002@buddy exercise_1]$ echo $linecount
+1467569
+
+```
+
+Lastly, I make two different for loops to return the amount of records in each file, using either counting method I mentioned in my original test. Fortunately these numbers are again the same, so we can be confident that they are correct.
+
+```{bash get_record_count, eval=FALSE}
+[gmd4002@buddy exercise_1]$ for file in *.gz; do echo "${file} has  $(( `zcat $file | wc -l` / 4)) records"; done
+ERR458878.fastq.gz has  1467569 records
+ERR458879.fastq.gz has  1450012 records
+ERR458880.fastq.gz has  1441569 records
+ERR458881.fastq.gz has  1321748 records
+ERR458882.fastq.gz has  1131784 records
+ERR458883.fastq.gz has  1140688 records
+ERR458884.fastq.gz has  1461646 records
+
+[gmd4002@buddy exercise_1]$ for file in *.gz; do echo "${file} has ${zcat $file | egrep '^@ERR' | wc -l} files"; done
+bash: ${file} has ${zcat $file | egrep '^@ERR' | wc -l} files: bad substitution
+[gmd4002@buddy exercise_1]$ for file in *.gz; do record_count=$(( `zcat $file | wc -l` / 4)); echo "${file} has ${record_count} records"; done
+ERR458878.fastq.gz has 1467569 records
+ERR458879.fastq.gz has 1450012 records
+ERR458880.fastq.gz has 1441569 records
+ERR458881.fastq.gz has 1321748 records
+ERR458882.fastq.gz has 1131784 records
+ERR458883.fastq.gz has 1140688 records
+ERR458884.fastq.gz has 1461646 records
+
+```
+

@@ -1,0 +1,560 @@
+---
+title: 'Week 2: Git, GitHub, and RStudio '
+author: "Gabriel Deards"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 2
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question 1
+*Extract the barcode sequences for each read in demo.fastq. In this file, the barcode is the last set of alphabetic characters in  the sequence identifier line. How many unique barcodes are there? List them. (3pts).*
+*Hint: Use egrep, sort, uniq. Read the man pages for egrep, to identify useful options. Use the pipe (|) to chain commands. You can use multiple egrep commands.*
+
+
+```{bash check_demo.fasta, eval=FALSE}
+# After logging in, I first check the contents of the demo.fastq file.
+
+[gmd4002@buddy class_data]$ head demo.fastq 
+@NB501971:154:H3LLMBGX7:1:11101:6765:1063 1:N:0:GAGTGG
+CGGCTNGTCTTAAACGTCTTTAAGGTGCTTGAGAGGATGAAGGTGGTGAAAAAGAGAATACAGGACCAAAAGAGGACATCAGGAG
++
+AA/AA#EEEE/EEEE//EAA/E6//EAE/EEEEEA/E///E6///EEEE/E66AEEEE/AEEA/AEEEE/E/<EEEEAEEAEEEE
+@NB501971:154:H3LLMBGX7:1:11101:6751:1063 1:N:0:GAGTGG
+GGCATNTTGAAGTACAATACACCAGGCTTTCATTTCTTCTTTACATTATGATTGTGAGATCGGAAGAGCACACGTCTGAACTCCA
++
+AAAAA#EEEEAEEEA/EE/EEAEEEEEEEEEEEEEEEEEE/EE/EEEEA/EEEAEEEAE<AEEEEEE/6AEEAEAEE/EEAEE<<
+@NB501971:154:H3LLMBGX7:1:11101:5236:1064 1:N:0:GAGTGG
+CCGCCNAGAGAGCCCCAGAGCAGAGGAAAATCCAAAGTGGAGAGAGGGGAAGAAAGAGACCAGTGAGTCATCCGTCCAGAAGGCG
+
+# I also get some basic informtion about the size of the file using wc
+
+[gmd4002@buddy class_data]$ wc demo.fastq 
+ 100000  125000 5753003 demo.fastq
+```
+
+
+Checking the online documentation for the fastq file format, it seems that all sequences are recorded using 4 lines. The first line always starts with an '@' sign, and contains sequence ID data.  Therefore, *we will need to extract those lines from the file.*
+
+
+```{bash get_id_line, eval=FALSE}
+# I use egrep to sort through the file, and return only lines that start with '@'.
+
+[gmd4002@buddy class_data]$ egrep '^@.*' demo.fastq | head
+@NB501971:154:H3LLMBGX7:1:11101:6765:1063 1:N:0:GAGTGG
+@NB501971:154:H3LLMBGX7:1:11101:6751:1063 1:N:0:GAGTGG
+@NB501971:154:H3LLMBGX7:1:11101:5236:1064 1:N:0:GAGTGG
+@NB501971:154:H3LLMBGX7:1:11101:3262:1065 1:N:0:GAGTGG
+@NB501971:154:H3LLMBGX7:1:11101:10435:1065 1:N:0:GAGTGG
+@NB501971:154:H3LLMBGX7:1:11101:9794:1066 1:N:0:GAGTGG
+@NB501971:154:H3LLMBGX7:1:11101:17848:1069 1:N:0:TAGTGG
+@NB501971:154:H3LLMBGX7:1:11101:13507:1069 1:N:0:GAGTGG
+@NB501971:154:H3LLMBGX7:1:11101:9190:1070 1:N:0:GAGTGG
+@NB501971:154:H3LLMBGX7:1:11101:9292:1071 1:N:0:GAGTGG
+
+# I also verify that I have performed this step correctly by checking wc -l
+
+[gmd4002@buddy class_data]$ egrep '^@.*' demo.fastq | wc -l
+25000
+
+# 25000 is the expected number of lines, as 100000 / 4 = 25000.
+```
+
+
+Cutting out the other lines makes it easier to see that our data is delimited by colons. We're only interested in the barcode sequences at the end, so therefore *we need to extract the 10th column.*
+
+
+```{bash get_barcodes, eval=FALSE}
+# I use egrep to sort through the file, and return only lines that start with '@'.
+
+[gmd4002@buddy class_data]$ egrep '^@.*' demo.fastq | cut -d ":" -f  10 | head
+GAGTGG
+GAGTGG
+GAGTGG
+GAGTGG
+GAGTGG
+GAGTGG
+TAGTGG
+GAGTGG
+GAGTGG
+GAGTGG
+```
+
+
+Having extracted the barcodes, I now need to ensure that I return a unique list. 'uniq' only filters results from adjacent lines, so in order to use that command, I will first need to sort this column alphabetically. Therefore *we need to sort this data, then filter for uniquneness.*
+
+
+```{bash uniq_barcodes, eval=FALSE}
+# As I just mentioned, we need to sort our barcodes in order to avoid duplicates in our result. If we don't sort first, our output might look like this:
+
+[gmd4002@buddy class_data]$ egrep '^@.*' demo.fastq | cut -d ":" -f  10 | uniq -c | head
+      6 GAGTGG
+      1 TAGTGG
+     22 GAGTGG
+      1 GACTGG
+     19 GAGTGG
+      1 GAGTGA
+     45 GAGTGG
+      1 CAGTGG
+     57 GAGTGG
+      1 GAGTGC
+      
+# Note that there are multiple instances of the same barcode even in this small sample. So, in order to sidestep this issue, we pipe our results to sort, which sorts them alphabetically.
+
+[gmd4002@buddy class_data]$ egrep '^@.*' demo.fastq | cut -d ":" -f  10 | sort | head
+AAGTGG
+AAGTGG
+AAGTGG
+AAGTGG
+AAGTGG
+AAGTGG
+AAGTGG
+AAGTGG
+AAGTGG
+AAGTGG
+
+# We can then pipe our results to uniq:
+
+[gmd4002@buddy class_data]$ egrep '^@.*' demo.fastq | cut -d ":" -f  10 | sort | uniq > barcodes.txt
+[gmd4002@buddy class_data]$ cat barcodes.txt 
+AAGTGG
+CAGTGG
+GAATGG
+GACTGG
+GAGAGG
+GAGCGG
+GAGGGG
+GAGTAG
+GAGTCG
+GAGTGA
+GAGTGC
+GAGTGG
+GAGTGT
+GAGTTG
+GATTGG
+GCGTGG
+GGGTGG
+GTGTGG
+NAGTGG
+TAGTGG
+```
+
+
+I was also interested in seeing the count for all of these barcodes, so I output those to a separate file.
+
+
+```{bash get_barcode_counts, eval=FALSE}
+[gmd4002@buddy class_data]$ egrep '^@.*' demo.fastq | cut -d ":" -f  10 | sort | uniq -c > barcode_count.txt 
+[gmd4002@buddy class_data]$ egrep '^@.*' demo.fastq | cut -d ":" -f  10 | sort | uniq -c |cat
+     12 AAGTGG
+     36 CAGTGG
+      5 GAATGG
+     64 GACTGG
+     45 GAGAGG
+      6 GAGCGG
+     50 GAGGGG
+      6 GAGTAG
+     59 GAGTCG
+     27 GAGTGA
+     76 GAGTGC
+  24260 GAGTGG
+     36 GAGTGT
+     44 GAGTTG
+     53 GATTGG
+     39 GCGTGG
+     73 GGGTGG
+     50 GTGTGG
+     20 NAGTGG
+     39 TAGTGG
+```
+
+
+## Question 2
+*Copy the PDB files from /home/luce/angsd/demo-data. Write a for loop that will loop over each file, print the name of the file being processed, print the number of lines in the file, print the number of atoms in the file, and print the source organism(s). (3pts, with bonus points for making the output as concise and readable as possible).*
+*Hint: Use echo, cat, cut to include only relevant information.*
+
+
+To start, I need to copy those PDB files into a new folder.
+
+
+```{bash get_pdb_files, eval=FALSE}
+# From my home directory, I go into my class_data directory, and make a new directory for the pdb files:
+
+[gmd4002@buddy ~]$ cd class_data/
+[gmd4002@buddy class_data]$ 
+[gmd4002@buddy class_data]$ mkdir pdb_files
+[gmd4002@buddy class_data]$ ls
+1TAW.pdb           barcodes.txt  pdb_files            sacCer2.chrom.sizes  test1.sizes
+barcode_count.txt  demo.fastq    sacCer1.chrom.sizes  sacCer3.chrom.sizes
+
+# I then cd into the new directory, and use some bash scripting to copy all files of the pdb filetype from /home/luce/angsd/demo-data/ to my current directory. I also use the -v flag to confirm that this has taken place.
+
+[gmd4002@buddy class_data]$ cd pdb_files
+[gmd4002@buddy pdb_files]$ for file in *.pdb; do cp -v /home/luce/angsd/demo-data/$file .; done
+‘/home/luce/angsd/demo-data/1A3B.pdb’ -> ‘./1A3B.pdb’
+‘/home/luce/angsd/demo-data/1AAP.pdb’ -> ‘./1AAP.pdb’
+‘/home/luce/angsd/demo-data/1BTH.pdb’ -> ‘./1BTH.pdb’
+‘/home/luce/angsd/demo-data/1DZI.pdb’ -> ‘./1DZI.pdb’
+‘/home/luce/angsd/demo-data/1M3D.pdb’ -> ‘./1M3D.pdb’
+‘/home/luce/angsd/demo-data/1NMJ.pdb’ -> ‘./1NMJ.pdb’
+‘/home/luce/angsd/demo-data/1O91.pdb’ -> ‘./1O91.pdb’
+‘/home/luce/angsd/demo-data/1TAW.pdb’ -> ‘./1TAW.pdb’
+‘/home/luce/angsd/demo-data/1Y0F.pdb’ -> ‘./1Y0F.pdb’
+
+# To check this has proceeded correctly, I use ls to check the contents of pdb_files.
+
+[gmd4002@buddy pdb_files]$ ls
+1A3B.pdb  1AAP.pdb  1BTH.pdb  1DZI.pdb  1M3D.pdb  1NMJ.pdb  1O91.pdb  1TAW.pdb  1Y0F.pdb
+```
+
+
+Now that we've confirmed that our files are in the right place, we can start breaking down this question into smaller chunks.
+
+- First, we need to *print out the name of each file.*
+- Then, we need to *print the number of lines*
+- Then, we need to *print the number of atoms in the file*
+- Finally, we need to *print the source organisms*
+
+Our first step is the easiest, and doesn't even require us to look at the contents of the files:
+
+
+```{bash echo_pdb_files, eval=FALSE}
+# To do this, we can recycle a big chunk of our earlier bash script.
+
+[gmd4002@buddy pdb_files]$ for file in *.pdb; do echo $file; done
+1A3B.pdb
+1AAP.pdb
+1BTH.pdb
+1DZI.pdb
+1M3D.pdb
+1NMJ.pdb
+1O91.pdb
+1TAW.pdb
+1Y0F.pdb
+```
+
+
+To get the number of lines, we'll need to use egrep again. 
+
+
+```{bash get_line_counts, eval=FALSE}
+# Working off of our earlier bash script, we add another command to get the linecount for each file:
+
+[gmd4002@buddy pdb_files]$ wc -l 1A3B.pdb | egrep -o '^[0-9]+' | head
+2983
+[gmd4002@buddy pdb_files]$ for file in *.pdb; do
+> echo $file
+> wc -l $file;
+> done
+1A3B.pdb
+2983 1A3B.pdb
+1AAP.pdb
+1068 1AAP.pdb
+1BTH.pdb
+6359 1BTH.pdb
+1DZI.pdb
+2895 1DZI.pdb
+1M3D.pdb
+23352 1M3D.pdb
+1NMJ.pdb
+543 1NMJ.pdb
+1O91.pdb
+4057 1O91.pdb
+1TAW.pdb
+2520 1TAW.pdb
+1Y0F.pdb
+4259 1Y0F.pdb
+
+# While this is technically correct, it's a little redundant to print the filename twice. In order to remove the file name, we can use egrep to extract only the matching pattern using the flag -o
+
+[gmd4002@buddy pdb_files]$ for file in *.pdb; do
+> echo $file
+> wc -l $file | egrep -o '^[0-9]+';
+> done
+1A3B.pdb
+2983
+1AAP.pdb
+1068
+1BTH.pdb
+6359
+1DZI.pdb
+2895
+1M3D.pdb
+23352
+1NMJ.pdb
+543
+1O91.pdb
+4057
+1TAW.pdb
+2520
+1Y0F.pdb
+4259
+```
+
+
+To get the number of atoms in the file, we'll finally need to take a look inside of it, and learn a bit more about the pdb file format.
+
+
+```{bash pdb_format_examination, eval=FALSE}
+#First we look at one of the files in our directory
+
+[gmd4002@buddy pdb_files]$ head 1A3B.pdb 
+HEADER    COMPLEX (SERINE PROTEASE/INHIBITOR)     20-JAN-98   1A3B              
+TITLE     COMPLEX OF HUMAN ALPHA-THROMBIN WITH THE BIFUNCTIONAL                 
+TITLE    2 BORONATE INHIBITOR BOROLOG1                                          
+COMPND    MOL_ID: 1;                                                            
+COMPND   2 MOLECULE: ALPHA-THROMBIN;                                            
+COMPND   3 CHAIN: L, H;                                                         
+COMPND   4 EC: 3.4.21.5;                                                        
+COMPND   5 MOL_ID: 2;                                                           
+COMPND   6 MOLECULE: BORONATE INHIBITOR BOROLOG1;                               
+COMPND   7 CHAIN: I     
+
+# As can be seen from this example, each line in these pdb files starts with a string in all caps characterizing what sort of data it contains. Let's see how many different kinds of lines this file has:
+
+[gmd4002@buddy pdb_files]$ egrep -o '^[A-Z]+' 1A3B.pdb | sort | uniq -c | cat
+   2325 ATOM
+      2 AUTHOR
+      1 CISPEP
+      7 COMPND
+     43 CONECT
+      1 CRYST
+      4 DBREF
+      1 END
+      1 EXPDTA
+      2 FORMUL
+      1 HEADER
+      9 HELIX
+      1 HET
+    281 HETATM
+      1 HETNAM
+      1 KEYWDS
+      1 LINK
+      1 MASTER
+      1 MODRES
+      3 ORIGX
+    236 REMARK
+      1 REVDAT
+      3 SCALE
+      6 SEQADV
+     25 SEQRES
+     13 SHEET
+      7 SOURCE
+      3 TER
+      2 TITLE
+      
+# for clarity's sake, I also check the count of line types:
+
+[gmd4002@buddy pdb_files]$ egrep -o '^[A-Z]+' 1A3B.pdb | sort | uniq -c | wc -l
+29
+```
+
+
+Doing some background research on pdb files, I learn that ATOM and HETATM records both contain coordinate information for the location of specific atoms. ATOM records record the location of atoms found in protein molecules (amino acid components, etc.), whereas HETATM does the same for atoms not found in protein molecules (water, etc.) 
+
+So, in order to get the number of atoms in each file, we'll need to *return the number of ATOM and HETATM records in each file.*
+
+
+```{bash get_atoms, eval=FALSE}
+# To get all ATOM and HETATM records, we can once again use egrep. I'll run my regex against the same file and check my results against the counts I got in the previous step:
+
+[gmd4002@buddy pdb_files]$ egrep -o '^ATOM|^HETATM' 1A3B.pdb | sort | uniq -c
+   2325 ATOM
+    281 HETATM
+
+# Now that we've confirmed our regex works, we can return the sum of both record types:
+
+[gmd4002@buddy pdb_files]$ egrep -o '^ATOM|^HETATM' 1A3B.pdb | wc -l | egrep -o '^[0-9]+'
+2606
+
+# And then add that to our bash script:
+
+[gmd4002@buddy pdb_files]$ for file in *.pdb; do echo $file; wc -l $file | egrep -o '^[0-9]+'; egrep -o '^ATOM|^HETATM' $file |  wc -l | egrep -o '^[0-9]+';  done
+1A3B.pdb
+2983
+2606
+1AAP.pdb
+1068
+971
+1BTH.pdb
+6359
+5925
+1DZI.pdb
+2895
+2266
+1M3D.pdb
+23352
+22023
+1NMJ.pdb
+543
+427
+1O91.pdb
+4057
+3425
+1TAW.pdb
+2520
+2198
+1Y0F.pdb
+4259
+3134
+
+# The results are getting a little confusing, so I am going to store these results as variables, and output them in echo statements for clarity. I am also going to change my egrep command to use the cat piping trick that Merv recommended.
+
+[gmd4002@buddy pdb_files]$ for file in *.pdb; do  n_lines=$(cat $file | wc -l); n_atoms=$(cat $file | egrep -o '^ATOM|^HETATM' | sort | wc -l); echo "${file} has ${n_lines} lines, and ${n_atoms} atoms"; done
+1A3B.pdb has 2983 lines, and 2606 atoms
+1AAP.pdb has 1068 lines, and 971 atoms
+1BTH.pdb has 6359 lines, and 5925 atoms
+1DZI.pdb has 2895 lines, and 2266 atoms
+1M3D.pdb has 23352 lines, and 22023 atoms
+1NMJ.pdb has 543 lines, and 427 atoms
+1O91.pdb has 4057 lines, and 3425 atoms
+1TAW.pdb has 2520 lines, and 2198 atoms
+1Y0F.pdb has 4259 lines, and 3134 atoms
+
+```
+
+
+Lastly, we need to determine the source organisms for each pdb file. 
+
+
+```{bash get_source_orgs, eval=FALSE}
+# The source organism should be listed in the SOURCE records, so let's first look at those:
+
+[gmd4002@buddy pdb_files]$ cat 1A3B.pdb | egrep '^SOURCE'
+SOURCE    MOL_ID: 1;                                                            
+SOURCE   2 ORGANISM_SCIENTIFIC: HOMO SAPIENS;                                   
+SOURCE   3 ORGANISM_COMMON: HUMAN;                                              
+SOURCE   4 MOL_ID: 2;                                                           
+SOURCE   5 SYNTHETIC: YES;                                                      
+SOURCE   6 ORGANISM_SCIENTIFIC: HIRUDO MEDICINALIS;                             
+SOURCE   7 ORGANISM_COMMON: MEDICINAL LEECH   
+
+# So, it seems that in this pdb file, the organism's name is stored in a source record containing the string "ORGANISM_SCIENTIFIC". We can incorporate that into our regex:
+
+[gmd4002@buddy pdb_files]$ cat 1A3B.pdb | egrep '^SOURCE.*ORGANISM_SCIENTIFIC' 
+SOURCE   2 ORGANISM_SCIENTIFIC: HOMO SAPIENS;                                   
+SOURCE   6 ORGANISM_SCIENTIFIC: HIRUDO MEDICINALIS;     
+
+# And then do a bit of cutting to extract only the scientific name:
+
+[gmd4002@buddy pdb_files]$ cat 1A3B.pdb | egrep '^SOURCE.*ORGANISM_SCIENTIFIC' | cut -d ':' -f 2 | cut -d ';' -f 1
+ HOMO SAPIENS
+ HIRUDO MEDICINALIS
+ 
+ # Now we can finally put that all together and run it in our loop!
+ 
+ [gmd4002@buddy pdb_files]$ for file in *.pdb; do  
+ n_lines=$(cat $file | wc -l); 
+ n_atoms=$(cat $file | egrep -o '^ATOM|^HETATM' | sort | wc -l); 
+ orgs=$(cat $file | egrep '^SOURCE.*ORGANISM_SCIENTIFIC' | cut -d ':' -f 2 | uniq); 
+ echo "${file} has ${n_lines} lines and ${n_atoms} atoms, obtained from the following source organism(s)"; 
+ echo $orgs; done
+ 
+1A3B.pdb has 2983 lines and 2606 atoms, obtained from the following source organism(s)
+HOMO SAPIENS; HIRUDO MEDICINALIS;
+1AAP.pdb has 1068 lines and 971 atoms, obtained from the following source organism(s)
+
+1BTH.pdb has 6359 lines and 5925 atoms, obtained from the following source organism(s)
+BOS TAURUS;
+1DZI.pdb has 2895 lines and 2266 atoms, obtained from the following source organism(s)
+HOMO SAPIENS;
+1M3D.pdb has 23352 lines and 22023 atoms, obtained from the following source organism(s)
+BOS TAURUS;
+1NMJ.pdb has 543 lines and 427 atoms, obtained from the following source organism(s)
+RATTUS NORVEGICUS;
+1O91.pdb has 4057 lines and 3425 atoms, obtained from the following source organism(s)
+MUS MUSCULUS;
+1TAW.pdb has 2520 lines and 2198 atoms, obtained from the following source organism(s)
+BOS TAURUS; HOMO SAPIENS;
+1Y0F.pdb has 4259 lines and 3134 atoms, obtained from the following source organism(s)
+RATTUS NORVEGICUS;
+
+```
+
+
+Hmm... It seems as if we've missed the source organism for 1AAP.pdb! Let's look at that file and double check its formatting:
+
+
+```{bash check_1AAP, eval=FALSE}
+# Looking in that file, we find:
+
+[gmd4002@buddy pdb_files]$ cat 1AAP.pdb | egrep '^SOURCE'
+SOURCE    HUMAN (HOMO $SAPIENS) SYNTHETIC GENE CONSTRUCT EXPRESSED IN   1AAP   5
+SOURCE   2 (ESCHERICHIA $COLI)                                          1AAP   6
+
+
+
+
+```
+
+
+So it seems that the data for the source organismvin 1AAP.pdb isn't stored in the same way as the other pdb files. This sort of issue is unfortunately not uncommon in the real world. Data that people work with will often be incomplete or have missing metadata; which can happen for a variety of reasons (changing data standards, human error, the wrath of god, etc.). How one should respond should be considered on a case by case basis. 
+
+
+In this instance, given that this only affects one of several files, I feel it wouldn't be inappropriate to add a hard-coded fix to our loop, so that we can generate the correct output. Other options might be to manually edit the file in question, or to just ignore it and document your displeasure with the file format in your writeup (which I was very tempted to do).
+
+
+```{bash complete_loop, eval=FALSE}
+# In order to fix our loop, we need to add in an additional if statement to check to see if our orgs variable is empty. If so, we output "HOMO SAPIENS". The -z flag used in the brackets is a built in bash test for an empty variable, just what we need in this case.
+
+[gmd4002@buddy pdb_files]$ for file in *.pdb; do  
+n_lines=$(cat $file | wc -l); 
+n_atoms=$(cat $file | egrep -o '^ATOM|^HETATM' | sort | wc -l); 
+orgs=$(cat $file | egrep '^SOURCE.*ORGANISM_SCIENTIFIC' | cut -d ':' -f 2 | uniq); 
+echo "${file} is ${n_lines} lines long, contains ${n_atoms} atoms, and was derived from the following source organism(s)"; 
+if [ -z "$orgs" ]; 
+echo " HOMO SAPIENS"; 
+else echo "${orgs}"; 
+fi; done
+
+1A3B.pdb is 2983 lines long, contains 2606 atoms, and was derived from the following source organism(s)
+ HOMO SAPIENS;                                   
+ HIRUDO MEDICINALIS;                             
+1AAP.pdb is 1068 lines long, contains 971 atoms, and was derived from the following source organism(s)
+ HOMO SAPIENS
+1BTH.pdb is 6359 lines long, contains 5925 atoms, and was derived from the following source organism(s)
+ BOS TAURUS;                                     
+1DZI.pdb is 2895 lines long, contains 2266 atoms, and was derived from the following source organism(s)
+ HOMO SAPIENS;                                   
+1M3D.pdb is 23352 lines long, contains 22023 atoms, and was derived from the following source organism(s)
+ BOS TAURUS;                                     
+1NMJ.pdb is 543 lines long, contains 427 atoms, and was derived from the following source organism(s)
+ RATTUS NORVEGICUS;                              
+1O91.pdb is 4057 lines long, contains 3425 atoms, and was derived from the following source organism(s)
+ MUS MUSCULUS;                                   
+1TAW.pdb is 2520 lines long, contains 2198 atoms, and was derived from the following source organism(s)
+ BOS TAURUS;                                     
+ HOMO SAPIENS;                                   
+1Y0F.pdb is 4259 lines long, contains 3134 atoms, and was derived from the following source organism(s)
+ RATTUS NORVEGICUS;        
+
+1A3B.pdb has 2983 lines and 2606 atoms, obtained from the following source organism(s)
+ HOMO SAPIENS;                                   
+ HIRUDO MEDICINALIS;                             
+1AAP.pdb has 1068 lines and 971 atoms, obtained from the following source organism(s)
+ HOMO SAPIENS
+1BTH.pdb has 6359 lines and 5925 atoms, obtained from the following source organism(s)
+ BOS TAURUS;                                     
+1DZI.pdb has 2895 lines and 2266 atoms, obtained from the following source organism(s)
+ HOMO SAPIENS;                                   
+1M3D.pdb has 23352 lines and 22023 atoms, obtained from the following source organism(s)
+ BOS TAURUS;                                     
+1NMJ.pdb has 543 lines and 427 atoms, obtained from the following source organism(s)
+ RATTUS NORVEGICUS;                              
+1O91.pdb has 4057 lines and 3425 atoms, obtained from the following source organism(s)
+ MUS MUSCULUS;                                   
+1TAW.pdb has 2520 lines and 2198 atoms, obtained from the following source organism(s)
+ BOS TAURUS;                                     
+ HOMO SAPIENS;                                   
+1Y0F.pdb has 4259 lines and 3134 atoms, obtained from the following source organism(s)
+ RATTUS NORVEGICUS;    
+```
+

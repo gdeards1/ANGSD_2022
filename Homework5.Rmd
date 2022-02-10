@@ -1,0 +1,40 @@
+---
+title: "Homework5"
+author: "Gabriel Deards"
+date: "2/10/2022"
+output: 
+  html_document: 
+    toc: yes
+---
+
+##Question 1:
+    Write a script that will: (3pt)
+        run BWA on one of the samples from the Gierlinski dataset
+        run STAR on the same sample
+            Remember those three checks after read alignment:
+            Is it a BAM file?
+            Is it sorted?
+            Is it indexed?
+
+##Question 2:
+    Subset the aligned reads to select only those that map to chromosome I. (1pt)
+
+##Question 3:
+    Compare the output from BWA and STAR, and summarize any results or differences.
+        Which optional SAM fields does STAR add and what do they represent? (1pt)
+        Which optional SAM fields does BWA add and what do they represent? (1pt)
+        
+##Question 4:
+    Run bamqc on your BAM files (Note: this is a tool that’s not available in spack, but you can use it via /softlib/apps/EL7/BamQC/bin/bamqc after logging on to a compute node). You will need to figure out how to run this on your own (hint: /softlib/apps/EL7/BamQC/bin/bamqc --help).
+        Describe 3 differences between the bamqc results for both the BWA and the STAR output files. (3pt)
+        
+##Question 5:
+    Explain the difference between alignment score and mapping quality in SAM/BAM files. How does the interpretation of the mapping quality field differ between STAR and BWA? (2pt)
+    
+##Question 6:
+    What is the difference between a multi-mapping read, and a split read? Find a read that has been split in STAR. How did BWA handle the mapping of that read? (2pt)
+    
+##Question 7:
+    How can you remove the unmapped reads from the BWA output? (hint: go back to the notes where FLAG values were explained) (1pt)
+
+Submit both a raw Rmd and a rendered version (HTML or PDF). The script from Step 1 can either be reproduced in the Rmd or submitted separately as a .sh file.
