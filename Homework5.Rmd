@@ -7,7 +7,7 @@ output:
     toc: yes
 ---
 
-##Question 1:
+## Question 1:
     Write a script that will: (3pt)
         run BWA on one of the samples from the Gierlinski dataset
         run STAR on the same sample
@@ -15,26 +15,320 @@ output:
             Is it a BAM file?
             Is it sorted?
             Is it indexed?
+            
+Having learned the lesson from my last homework, I decided to take some time to reconfigure my work environment. I went back to my hw_4 folder, created some new directories, and tidied up my output.
 
-##Question 2:
+```{bash environment_setup, eval=FALSE}
+[gmd4002@farina hw_4]$ mkdir raw_reads
+[gmd4002@farina hw_4]$ mkdir fastqc
+[gmd4002@farina hw_4]$ mkdir trimmed_reads
+
+[gmd4002@farina hw_4]$ mv *.fastqc.gz raw_reads/
+[gmd4002@farina hw_4]$ mv *fastqc* fastqc/
+[gmd4002@farina hw_4]$ mv *trimmed* trimmed_reads/
+[gmd4002@farina hw_4]$ mv *_trim* trimmed_reads/
+
+
+[gmd4002@curie gmd4002]$ cd /athena/angsd/scratch/gmd4002
+[gmd4002@curie gmd4002]$ mkdir hw_5
+[gmd4002@curie gmd4002]$ ls
+hw_5
+```
+
+In order to get a good estimate of the necessary time to run these scripts, I ran bwa once on a single duplicate of the SNF2_1 sample I would eventually run. It took a little under a minute to complete, and with Luce's help I was able to redo this run and output the amount of memory allocated to the task as well. It ended up being around 200 MB, and given Luce's advice to allocate ~10x more memory for the purpose, I ran most of these scripts with only 6 GB (x15). I'd reproduce this finding, but genuinely can't remember what command we used to generate that output in the first place. 
+
+```{bash BWA, eval=FALSE}
+[gmd4002@farina hw_5]$ bwa mem ~luce/angsd/referenceGenomes/sacCer3_BWAindex/sacCer3 ../hw_4/exercise_2/raw_reads/ERR458500.fastq.gz > ERR458500_2.bwa.sam
+[M::bwa_idx_load_from_disk] read 0 ALT contigs
+[M::process] read 196080 sequences (10000080 bp)...
+[M::process] read 196080 sequences (10000080 bp)...
+[M::mem_process_seqs] Processed 196080 reads in 4.800 CPU sec, 4.227 real sec
+[M::process] read 196080 sequences (10000080 bp)...
+[M::mem_process_seqs] Processed 196080 reads in 4.931 CPU sec, 4.238 real sec
+[M::mem_process_seqs] Processed 196080 reads in 4.803 CPU sec, 4.278 real sec
+[M::process] read 196080 sequences (10000080 bp)...
+[M::process] read 196080 sequences (10000080 bp)...
+[M::mem_process_seqs] Processed 196080 reads in 4.877 CPU sec, 4.290 real sec
+[M::process] read 196080 sequences (10000080 bp)...
+[M::mem_process_seqs] Processed 196080 reads in 5.305 CPU sec, 4.603 real sec
+[M::process] read 196080 sequences (10000080 bp)...
+[M::mem_process_seqs] Processed 196080 reads in 5.164 CPU sec, 4.479 real sec
+[M::process] read 196080 sequences (10000080 bp)...
+[M::mem_process_seqs] Processed 196080 reads in 5.019 CPU sec, 4.322 real sec
+[M::process] read 196080 sequences (10000080 bp)...
+[M::mem_process_seqs] Processed 196080 reads in 5.068 CPU sec, 4.416 real sec
+[M::process] read 120610 sequences (6151110 bp)...
+[M::mem_process_seqs] Processed 196080 reads in 4.638 CPU sec, 4.167 real sec
+[M::mem_process_seqs] Processed 120610 reads in 2.660 CPU sec, 2.536 real sec
+[main] Version: 0.7.15-r1140
+[main] CMD: bwa mem /home/luce/angsd/referenceGenomes/sacCer3_BWAindex/sacCer3 ../hw_4/exercise_2/raw_reads/ERR458500.fastq.gz
+[main] Real time: 50.353 sec; CPU: 48.349 sec
+```
+
+However, this process would need to be performed on a combined file of all the replicates for my chosen sample. For this to work, I'd need to zip the files I'd obtained from the last homework together. In order to practice my bash, I decided to perform this step in a bash script:
+
+I zcat all of the samples, then pipe that output to gzip in order to form a combined file. This can be run from any directory (thanks again for the advice Luce).
+
+I also attempted to add in some echoing feedback, and to write my log data to SLURM files. I think I might be missing the point of this as these are currently hard coded to a specific file name, but I couldn't seem to get this to work otherwise. Mea culpa.
+
+```{bash zip_script.sh.0, eval=FALSE}
+#! /bin/bash -l
+#SBATCH --partition=angsd_class
+#SBATCH --ntasks=1
+#SBATCH --job-name=run_rep1
+#SBATCH --time=24:00:00   
+#SBATCH --mem=12G
+#SBATCH --mail-user=gmd4002@med.cornell.edu
+#SBATCH --mail-type=END,FAIL
+
+inrep=/home/gmd4002/work/hw/hw_4/exercise_2/raw_reads
+outrep=/home/gmd4002/work/hw/hw_5
+
+
+echo " Let's get started! Starting at " `date ` 
+echo " Starting at:" `date ` >> ${outrep}/zcat_slurm_output.txt
+echo " This is job #:" $SLURM_JOB_ID >> ${outrep}/zcat_slurm_output.txt
+echo " Running on node :" `hostname ` >> ${outrep}/zcat_slurm_output.txt
+echo " Running on cluster :" $SLURM_CLUSTER_NAME >> ${outrep}/zcat_slurm_output.txt
+
+zcat ${inrep}/ERR458500.fastq.gz ${inrep}/ERR458501.fastq.gz ${inrep}/ERR458502.fastq.gz ${inrep}/ERR458503.fastq.gz ${inrep}/ERR458504.fastq.gz ${inrep}/ERR458505.fastq.gz ${inrep}/ERR458506.fastq.gz | gzip > ${outrep}/SNF2_1_combined.fastq.gz
+
+
+echo " Finished at " `date `  "!"
+echo " Done at:" `date ` >> ${outrep}/zcat_slurm_output.txt
+
+exit
+```
+
+After zipping the file, I can then run my newly minted script to run bwa and STAR on the sample. To do this, I spack load both packages, create new output directories for either proceedure, and (copying the class notes) I run STAR and bwa mem on the combined file.
+
+```{bash run_star.sh, eval=FALSE}
+#! /bin/bash -l
+#SBATCH --partition=angsd_class
+#SBATCH --ntasks=1
+#SBATCH --job-name=run_rep1
+#SBATCH --time=24:00:00   
+#SBATCH --mem=6G
+#SBATCH --mail-user=gmd4002@med.cornell.edu
+#SBATCH --mail-type=END,FAIL
+
+spack load bwa@0.7.15%gcc@6.3.0
+spack load star@2.7.0
+
+echo " Let's get started! Starting at " `date `
+echo " Starting at:" `date ` >> ${outdir}/hw_5_star_slurm_output.txt
+echo " This is job #:" $SLURM_JOB_ID >> ${outdir}/hw_5_star_slurm_output.txt
+echo " Running on node :" `hostname ` >> ${outdir}/hw_5_star_slurm_output.txt
+echo " Running on cluster :" $SLURM_CLUSTER_NAME >> ${outdir}/hw_5_star_slurm_output.txt
+
+SAMPLE="SNF2_1"
+
+rep=/home/gmd4002/work/hw/hw_5/SNF2_1_combined.fastq.gz
+STARind=/home/luce/angsd/referenceGenomes/sacCer3_STARindex
+bwaind=/home/luce/angsd/referenceGenomes/sacCer3_BWAindex/sacCer3
+outdir=/athena/angsd/scratch/gmd4002/hw_5
+
+mkdir STAR_out
+mkdir bwa_out
+STAR --runMode alignReads --runThreadN 1 --genomeDir $STARind --readFilesIn ${rep} --readFilesCommand zcat --outFileNamePrefix ${outdir}/STAR_out/${SAMPLE}_STAR_ --outSAMtype BAM SortedByCoordinate --outFilterMultimapNmax 4
+bwa mem $bwaind $rep > ${outdir}/bwa_out/${SAMPLE}.bwa.sam
+
+echo " Finished at " `date `  "!"
+echo " Done at:" `date ` >> ${outdir}/hw_5_star_slurm_output.txt
+
+exit
+```
+
+The summarized output can be seen below:
+
+```{bash run_STAR_output_SNF2_1_Combined, eval=FALSE}
+[gmd4002@farina hw_5]$ bash run_STAR.sh 
+ Let's get started! Starting at  Sun Feb 13 11:45:48 EST 2022
+run_STAR.sh: line 14: /hw_5_star_slurm_output.txt: Permission denied
+run_STAR.sh: line 15: /hw_5_star_slurm_output.txt: Permission denied
+run_STAR.sh: line 16: /hw_5_star_slurm_output.txt: Permission denied
+run_STAR.sh: line 17: /hw_5_star_slurm_output.txt: Permission denied
+mkdir: cannot create directory ‘STAR_out’: File exists
+mkdir: cannot create directory ‘bwa_out’: File exists
+Feb 13 11:45:48 ..... started STAR run
+Feb 13 11:45:48 ..... loading genome
+Feb 13 11:56:10 ..... started mapping
+Feb 13 12:00:13 ..... finished mapping
+Feb 13 12:00:13 ..... started sorting BAM
+Feb 13 12:00:47 ..... finished successfully
+[M::bwa_idx_load_from_disk] read 0 ALT contigs
+[M::process] read 196080 sequences (10000080 bp)...
+[M::process] read 196080 sequences (10000080 bp)...
+[M::mem_process_seqs] Processed 196080 reads in 4.903 CPU sec, 4.338 real sec
+[M::process] read 196080 sequences (10000080 bp)...
+...
+[M::mem_process_seqs] Processed 160145 reads in 3.569 CPU sec, 3.435 real sec
+[main] Version: 0.7.15-r1140
+[main] CMD: bwa mem /home/luce/angsd/referenceGenomes/sacCer3_BWAindex/sacCer3 /home/gmd4002/work/hw/hw_5/SNF2_1_combined.fastq.gz
+[main] Real time: 277.867 sec; CPU: 313.004 sec
+ Finished at  Sun Feb 13 12:05:25 EST 2022 !
+```
+
+
+## Question 2:
     Subset the aligned reads to select only those that map to chromosome I. (1pt)
 
-##Question 3:
+In order to subset the aligned reads, I first need to align the reads! To do this I again create a bash script for running samtools (again, mostly copying the notes). Just like before, it echoes start and stop times, creates a slurm file, and runs from anywhere. I've also created a variable for the sample so that it can be used on any sample in the future.   
+
+```{bash run_samtools.sh_script, eval=FALSE}
+#!/bin/bash -l
+#SBATCH --partition=angsd_class
+#SBATCH --ntasks=1
+#SBATCH --job-name=gmd_samtools
+#SBATCH --time=24:00:00   
+#SBATCH --mem=6G
+#SBATCH --mail-user=gmd4002@cornell.edu
+#SBATCH --mail-type=END,FAIL
+
+spack load samtools@1.9%gcc@6.3.0
+pathway=/athena/angsd/scratch/gmd4002/hw_5
+
+echo " Let's get started! Starting at " `date `
+echo " Starting at:" `date ` >> ${pathway}/hw_5_sam_slurm_output.txt
+echo " This is job #:" $SLURM_JOB_ID >> ${pathway}/hw_5_sam_slurm_output.txt
+echo " Running on node :" `hostname ` >> ${pathway}/hw_5_sam_slurm_output.txt
+echo " Running on cluster :" $SLURM_CLUSTER_NAME >> ${pathway}/hw_5_sam_slurm_output.txt
+
+cd $pathway
+SAMPLE="SNF2_1"
+
+i=$(find bwa_out/$SAMPLE*.sam)
+
+samtools view -b ${i} | samtools sort -o ${i}.sorted.bam
+samtools index ${i}.sorted.bam
+
+samtools index STAR_out/*.bam
+
+echo " Finished at " `date `  "!"
+echo " Done at:" `date ` >> ${outdir}/hw_5_star_slurm_output.txt
+
+exit
+```
+
+Here's the output from running the script:
+
+```{bash run_samtools.sh, eval=FALSE}
+[gmd4002@farina hw_5]$ bash run_samtools.sh 
+ Let's get started! Starting at  Sun Feb 13 13:40:09 EST 2022
+[bam_sort_core] merging from 2 files and 1 in-memory blocks...
+ Finished at  Sun Feb 13 13:43:18 EST 2022 !
+```
+
+Now that we've aligned our reads, we can used regular expressions to grab all lines where "chrI" sandwiched between two white spaces appears. This appears to work fine, and I save the reads to a textfile.
+
+```{bash subset, eval=FALSE}
+[gmd4002@farina bwa_out]$ samtools view -h SNF2_1.bwa.sam.sorted.bam | egrep '\schrI\s' | wc -l
+195873
+[gmd4002@farina bwa_out]$ samtools view -h SNF2_1.bwa.sam.sorted.bam | egrep '\schrI\s'  > chrI_reads.txt
+```
+
+
+## Question 3:
     Compare the output from BWA and STAR, and summarize any results or differences.
         Which optional SAM fields does STAR add and what do they represent? (1pt)
         Which optional SAM fields does BWA add and what do they represent? (1pt)
         
-##Question 4:
+In the case of bwa, the following fields are included in the OPT fields:
+* NM : edit distance to the reference (number of mismatched + inserted + deleted bases) for each mate. Standard SAM tag
+* MD : string encoding mismatched and deleted reference bases (see standard SAM specifications). Standard SAM tag.
+* AS : local alignment score, +1/ − 1 for matches/mismateches, score* penalties for indels and gaps. For PE reads, total score for two mates. Standard SAM tag. This is followed by I, for integer, followed by an actual score.
+* XS alignment strand, generated for all alignments that contain splice junctions
+* XA tags, alignment information about alternative matches. 
+
+In the case of STAR, the following fields are included in the OPT fields:
+* NH: number of loci the reads maps to: =1 for unique mappers, >1 for multimappers. Standard SAM tag.
+* nM number of mismatches. For PE reads, sum over two mates.
+* HI multiple alignment index, starts with –outSAMattrIHstart (=1 by default). Standard SAM tag. This is used for numbering multi-mapped hits in decreasing order.
+
+There were a number of shared fields as well, as can be seen in the STAR documentation.
+
+
+## Question 4:
     Run bamqc on your BAM files (Note: this is a tool that’s not available in spack, but you can use it via /softlib/apps/EL7/BamQC/bin/bamqc after logging on to a compute node). You will need to figure out how to run this on your own (hint: /softlib/apps/EL7/BamQC/bin/bamqc --help).
         Describe 3 differences between the bamqc results for both the BWA and the STAR output files. (3pt)
         
-##Question 5:
+        
+Again, in order to perform this step I wrote a bash script. The bamqc portion of it was lifted from the bamqc documentation.
+
+```{bash run_bamqc.sh_script, eval=FALSE}
+#! /bin/bash -l
+#BATCH --partition=angsd_class
+#SBATCH --ntasks=1
+#SBATCH --job-name=gmd_bamqc
+#SBATCH --time=24:00:00   
+#SBATCH --mem=4G 
+#SBATCH --mail-user=gmd4002@cornell.edu
+#SBATCH --mail-type=END,FAIL
+
+pathway=/athena/angsd/scratch/gmd4002/hw_5
+
+echo " Let's get started! Starting at " `date `
+echo " Starting at:" `date ` >> ${pathway}/hw_5_bamqc_slurm_output.txt
+echo " This is job #:" $SLURM_JOB_ID >> ${pathway}/hw_5_bamqc_slurm_output.txt
+echo " Running on node :" `hostname ` >> ${pathway}/hw_5_bamqc_slurm_output.txt
+echo " Running on cluster :" $SLURM_CLUSTER_NAME >> ${pathway}/hw_5_bamqc_slurm_output.txt
+
+cd $pathway
+SAMPLE="SNF2_1"
+
+mkdir bamqc 
+cd bamqc
+/softlib/apps/EL7/BamQC/bin/bamqc --dir /scratch -o .  ../bwa_out/$SAMPLE.bwa.sam.sorted.bam ../STAR_out/$SAMPLE_STAR_Aligned.sortedByCoord.out.bam
+
+echo " Finished at " `date `  "!"
+echo " Done at:" `date ` >> ${pathway}/hw_5_bamqc_slurm_output.txt
+```
+        
+After running it and bringing the files over to my local machine using Atom, I noticed the following differences:        
+In the basic statistics, I noticed that my bwa sorted BamQC report had a higher reading for Percent primary alignments, ~99% vs 88.7% for my STAR BamQC. Additionally, the bwa results all had MD tagged strings, whereas the STAR results had 0%. And while both sets of results had around .5% soft clips, the STAR results had 0% SNPs, while that rate was .5% in my bwa results.
+
+The soft clip length distributions graphs are also slightly different, with the bwa graphs covering a maximum clip length of 21, whereas the STAR results only reach 18. Additionally while both sets of results have small spikes in clip number between clip length 1-5 at the 5' end, the STAR results spike earlier and higher than the bwa results. 
+
+A major difference was in the indel frequencies graph, where the bwa results had a huge spike in insertions and deletions around bp position 3-6. Beyond this point, the graphs are fairly similar in shape; though the y axis is skewed due to this initial difference. 
+
+As mentioned before, there are no detected SNPs in the STAR results, so only the bwa results have an SNP frequency graph, or SNP by type bar graph.
+
+The quality mapping distributions are also markedly different, with the STAR results showing a far higher maximum value for MAPQ (>250 vs 60). Interestingly, both graphs hit their own respective maxiumm values for MAPQ for ~70% of their reads.
+        
+## Question 5:
     Explain the difference between alignment score and mapping quality in SAM/BAM files. How does the interpretation of the mapping quality field differ between STAR and BWA? (2pt)
     
-##Question 6:
+Alignment score is a metric that tells you how similar the read is to its reference. It increases with the number of matches and decreases with the number of mismatches and gaps detected (the ways in which this influences your score is determined by the scoring matrix used. Mapping quality on the other hand, is a measurement of how confident you can be that the read comes from the reported position. 
+You can have high alignment scores and low mapping quality if the read aligns perfectly, at multiple positions that make little sense; and you can have low alignment and high mapping quality if the read aligns with mismatches but matches the reported position with high probability.
+    
+## Question 6:
     What is the difference between a multi-mapping read, and a split read? Find a read that has been split in STAR. How did BWA handle the mapping of that read? (2pt)
     
-##Question 7:
+A multi-mapped read is a read of a sequences that maps more than once to the genome. A split read is a read made of two portions that map to different locations of the genome. In the event this occurs over an exon-exon junction, then STAR can map it easily as if it were a contiguous read. BWA is not splice aware, and cannot.
+
+In order to find a split read, we can use regular expressions to search our STAR files for N characters preceeded by a sequence of numbers in the CIGAR string. According to the documentation (and the notes), this should indicate the location of a large insertion (or N-sertion, if you will), separating two parts of our read, making it a split read.
+    
+I then choose a particular example, and again using regular expressions, pull it up for observation.
+Looking at our results, bwa appears to have clipped off some bases, as can be seen from the 3S statement in the CIGAR cde, followed by mapping 48 bases. This is opposed to our STAR results, where a gap was inserted, as shown by the N in the CIGAR code. 
+
+```{bash multi_map_search, eval=FALSE}
+[gmd4002@curie STAR_out]$ samtools view -h   SNF2_1_STAR_Aligned.sortedByCoord.sortedByCoord.out.bam | egrep [0-9]{3}N | less
+
+# Comparison of results
+[gmd4002@curie STAR_out]$ samtools view -h   SNF2_1_STAR_Aligned.sortedByCoord.out.bam | egrep ERR458500.311162 
+ERR458500.311162 		16	chrI	142250	255	4M366N47M	*	0	0	AAGGTACTGCTGTTTCTCAAGCTGACGTCACTGTCTTCAAGGCTTTCAAAT	FHEFDDCGGGIGGHCHDDFE9<IHGGEEIIHGGG<?BHDHFFFD;DB:@@?	NH:i:1	HI:i:1	AS:i:49	nM:i:1
+
+[gmd4002@farina bwa_out]$ samtools view -h  SNF2_1.bwa.sam.sorted.bam | egrep ERR458500.311162 
+ERR458500.311162 		16	chrI	142619	60	3S48M	*	0	0	AAGGTACTGCTGTTTCTCAAGCTGACGTCACTGTCTTCAAGGCTTTCAAAT	FHEFDDCGGGIGGHCHDDFE9<IHGGEEIIHGGG<?BHDHFFFD;DB:@@?	NM:i:1	MD:Z:44C3	AS:i:44	XS:i:0
+```
+
+    
+## Question 7:
     How can you remove the unmapped reads from the BWA output? (hint: go back to the notes where FLAG values were explained) (1pt)
 
-Submit both a raw Rmd and a rendered version (HTML or PDF). The script from Step 1 can either be reproduced in the Rmd or submitted separately as a .sh file.
+A simple way to do that is to search for 4's in the FLAG field. We can use regular expressions as usual, to search the flag field for a reading of '4', indicating that the read itself is unmapped. We can use the -v flag for a negative search, and return only the correct results (though my results apparently have 0 unmapped reads. Woo!). I again store these to a file.
+
+```{bash unmapped_read_removal, eval=FALSE}
+[gmd4002@farina bwa_out]$ samtools view -h SNF2_1.bwa.sam.sorted.bam  | egrep -v '\s4\s+chr' > SNF2_1.bwa.sam.sorted.mapped.bam
+```
+
