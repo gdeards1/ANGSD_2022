@@ -1,0 +1,195 @@
+---
+title: "Final_Project_Alignment_Read_Counts"
+author: "Gabriel Deards"
+date: "4/22/2022"
+output: html_document
+---
+
+```{r}
+library(DESeq2)
+library(magrittr)
+## additional packages:
+# BiocManager::install("apeglm") will be needed later on
+# BiocManager::install("goseq")
+## should have the DESeq object, DESeq.ds
+
+load("Final_Preprocessing.RData")
+```
+
+```{r}
+DESeq.ds$condition
+DESeq.ds$celltype
+
+```
+
+```{r}
+DESeq.ds$condition <- relevel(DESeq.ds$condition, ref="WT")
+DESeq.ds$condition
+```
+
+```{r}
+design(DESeq.ds)
+```
+
+```{r}
+DESeq.ds <- DESeq(DESeq.ds)
+DESeq.ds
+```
+
+```{r}
+DGE.results <- results(DESeq.ds, independentFiltering = TRUE, alpha = 0.05)
+# the first line will tell you which comparison was done to achieve the log2FC
+head(DGE.results)
+```
+
+```{r}
+summary(DGE.results)
+```
+
+```{r}
+# the DESeqResult object can basically be handled like a data.frame
+table(DGE.results$padj < 0.05)
+```
+
+```{r}
+hist(DGE.results$padj,
+     col="grey", border="white", xlab="", ylab="",
+     main="frequencies of adj. p-values\n(all genes)",
+     cex = 0.4)
+```
+
+```{r}
+DGE.results.sorted <- DGE.results[order(DGE.results$padj),]
+head(DGE.results.sorted)
+```
+
+```{r}
+par(mfrow=c(1,2))
+plotCounts(DESeq.ds, gene="ENSG00000215183.5", normalized = TRUE, main=paste(first_cols[first_cols[,1]=="ENSG00000215183.5",7]))
+plotCounts(DESeq.ds, gene = which.max(DGE.results$padj),
+           main = "Gene with max. p.adj.\n(=least significant)")
+```
+
+
+```{r}
+# identify genes with the desired adjusted p-value cut-off
+DGEgenes <- rownames(subset(DGE.results.sorted, padj < 0.05))
+
+
+# extract rlog-transformed values into a matrix
+rlog.dge <- DESeq.rlog[DGEgenes,] %>% assay
+
+
+library(pheatmap)
+# heatmap of DEG sorted by p.adjust
+pheatmap(rlog.dge, scale="none",
+         show_rownames = FALSE, main = "DGE (no scaling)",
+         color = colorRampPalette(RColorBrewer::brewer.pal(n = 7, name = "Reds"))(100))
+```
+
+```{r}
+pheatmap(rlog.dge, scale="row",
+show_rownames = FALSE, main = "DGE (row-based z-score)")
+```
+
+
+```{r}
+plotMA(DGE.results, alpha = 0.05,
+       main = "Test: p.adj.value < 0.05", ylim = c(-4,4))
+```
+
+
+
+```{r}
+#BiocManager::install("EnhancedVolcano")
+library(EnhancedVolcano)
+vp1 <- EnhancedVolcano(DGE.results,
+                       lab = rownames(DGE.results),
+                       x = 'log2FoldChange',
+                       y = 'padj', pCutoff = 0.05,
+                       title = "SNF2 / WT")
+print(vp1)
+```
+
+```{r}
+#BiocManager::install("EnhancedVolcano")
+library(EnhancedVolcano)
+vp1 <- EnhancedVolcano(DGE.results,
+                       lab = first_cols[first_cols[,1] %in% rownames(DGE.results),7],
+                       x = 'log2FoldChange',
+                       y = 'padj', pCutoff = 0.05,
+                       title = "SNF2 / WT")
+print(vp1)
+```
+
+
+```{r}
+## internally, lfcShrink will call results()
+DGE.results.shrink <- lfcShrink(DESeq.ds,
+                               coef = 2, # see below for explanation
+                               type = "apeglm") # see Zhu et al. (2018)
+```
+
+```{r}
+resultsNames(DESeq.ds)
+```
+
+```{r}
+par(mfrow = c(1,2))
+plotMA(DGE.results, alpha = 0.05,
+       main = "no shrinkage", ylim = c(-4,4))
+
+plotMA(DGE.results.shrnk,
+       alpha = 0.05,
+       main = "with logFC shrinkage", ylim = c(-4,4))
+```
+
+```{r}
+vp2 <- EnhancedVolcano(DGE.results.shrnk,
+                       #lab = rownames(DGE.results.shrnk),
+                       lab = first_cols[first_cols[,1] %in% rownames(DGE.results.shrnk),7],
+                       x = 'log2FoldChange',
+                       y = 'padj', pCutoff = 0.05,
+                       title = "with logFC shrinkage")
+
+library(patchwork)
+vp1 + vp2
+```
+
+```{r}
+# BiocManager::install("org.Sc.sgd.db") # install if needed
+library(org.Sc.sgd.db) # see also: org.Hs.eg.db, org.Mm.eg.db
+
+# list keytypes that are available to query the annotation data base
+keytypes(org.Sc.sgd.db)
+```
+
+```{r}
+# list columns that can be retrieved from the annotation data base
+columns(org.Sc.sgd.db)
+```
+
+```{r}
+# make a batch retrieval for all DE genes
+DGEgenes <- rownames(subset(DGE.results.sorted, padj < 0.05))
+anno.DGE <- select(org.Sc.sgd.db,
+                   keys = DGEgenes, # original rownames of DGE results
+                   keytype="ENSEMBL", # our rownames are ORF identifiers
+                   columns=c("SGD","GENENAME")) # what to return
+
+## check whether SNF2 pops up among the top downregulated genes
+head(anno.DGE)
+```
+
+```{r}
+par(mfrow=c(1,2))
+plotCounts(dds = DESeq.ds,
+           gene = "YOR290C", # SNF2
+           normalized = TRUE, transform = FALSE,
+           main = expression(atop("Expression of "*italic("snf2"), "(YOR290C)")))
+
+plotCounts(dds = DESeq.ds,
+           gene = "YGL012W", # the last gene in DGE
+           normalized = TRUE, transform = FALSE,
+           main = expression(atop("Expression of "*italic("erg4"), "(YGL012W)")))
+```

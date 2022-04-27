@@ -1,0 +1,631 @@
+---
+title: "Final_Project_GMD2"
+author: "Gabriel Deards"
+date: "4/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+Our various packages necessary for running subsiquent code.
+
+```{r package_loading, echo=FALSE}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+library(ggplot2)
+library(magrittr)
+library(DESeq2)
+library(tidyr)
+library(tidyverse)
+# BiocManager::install("vsn")
+library(vsn)
+#BiocManager::install("plyranges")
+library(plyranges)  
+
+
+#install.packages('hexbin') # re: https://github.com/tidyverse/ggplot2/issues/1232
+```
+
+We start by reading in our feature counts data, starting with the summary:
+
+```{r load_readcounts_summary, echo=FALSE}
+folder <- "/Users/gabrieldeards/Downloads/Project_Downloads/NewData/" 
+
+readcounts_summary <- read.delim(paste0(folder, "feature_counts_s2.txt.summary"), row.names=1)
+
+#colnames(readcounts_summary)
+```
+
+Our column names are a little gross, so we should fix up their names and mutate our table a bit.
+
+```{r readcounts_summary_data_cleanup, echo=FALSE}
+readcounts_summary <- readcounts_summary %>%
+  t %>%
+  as.data.frame%>%
+  mutate(sample=str_extract(rownames(.), "^[^.]+")) %>%
+  gather(Assignment, ReadCounts, -sample)
+
+#head(readcounts_summary)
+```
+
+```{r readcounts_summary_graph}
+readcounts_summary <- readcounts_summary[c(which(readcounts_summary$ReadCounts!=0)),]
+readcounts_summary %>% 
+ggplot(aes(sample, ReadCounts)) + geom_bar(stat="identity", aes(fill=Assignment), position="dodge") + coord_flip()
+```
+
+Now let's look at our normal data
+
+```{r load_readcounts}
+readcounts <- paste0(folder, "feature_counts_s2.txt") %>%
+  read.table(., header=TRUE)
+
+#str(readcounts)
+```
+
+Looking at the column data, our sample data is mixed together with additional fields. We will need to separate those out, and then alter the names of our samples for easier usage.
+
+```{r readcounts_data_cleanup}
+orig_names <- names(readcounts)
+orig_SRRs <- str_extract(orig_names[-seq(1,8)], "^[^.]+")
+
+
+
+names(readcounts) <- c(names(readcounts)[1:8],
+                       paste("WT", "DU145", c(1:3), sep = "_"),
+                       paste("SPINK1", "DU145",  c(1:3), sep = "_"),
+                       paste("WT",  "PC3", c(1:3), sep = "_"),
+                       paste("SPINK1", "PC3", c(1:3), sep = "_") ) 
+colnames(readcounts)
+
+first_cols <- readcounts[,1:7] %>% as.data.frame 
+
+```
+
+
+```{r}
+## gene IDs should be stored as row.names
+row.names(readcounts) <- make.names(readcounts$Geneid)
+
+## info such as genomic coordinates)
+readcounts <- readcounts[ , -seq(1:8)]
+
+
+head(readcounts)
+```
+
+
+```{r}
+# let's use the info from our readcounts object
+sample_info <- data.frame('condition' = c('WT','WT','WT','SPINK1','SPINK1','SPINK1','WT','WT','WT','SPINK1','SPINK1','SPINK1'), 'celltype' = c('DU145','DU145','DU145','DU145','DU145','DU145','PC3','PC3','PC3','PC3','PC3','PC3'), 'SRR' = orig_SRRs,
+                          row.names = names(readcounts) )
+
+sample_info
+```
+
+```{r}
+genes_df <- 
+  read_gff(paste0(folder, "gencode.v39.annotation.gtf") , 
+           genome_info="hg38") %>% 
+  select(gene_id, gene_type, gene_name) %>% 
+  as.data.frame()
+
+gene_info_df <-
+  data.frame(gencode_id = rownames(readcounts)) %>% 
+  left_join(., genes_df, 
+            by = c('gencode_id' = 'gene_id')) %>% 
+  select(gencode_id, gene_name, gene_type) %>% 
+  filter(gene_type == 'protein_coding',
+         !str_detect(gene_name, '^MT-')) %>%
+  distinct() 
+
+readcounts <- 
+  readcounts[gene_info_df$gencode_id, ]
+```
+
+```{r}
+str(sample_info)
+```
+
+```{r}
+#Geneid_map <- read.csv(paste0(folder, "idmap3.csv"), header=TRUE)
+#head(Geneid_map, n=20)
+```
+
+QUESTION: Does it matter if I split my data before or after this?
+
+
+```{r}
+DESeqFull.ds <- DESeqDataSetFromMatrix(countData = as.matrix(readcounts),
+                                   colData = sample_info,
+                                   rowData = first_cols,
+                                   design = ~ Type + Culture)
+
+# ~ Type + Culture, Culture is WT/SPINK, Type is cell type
+#changing name for sake of tests
+DESeq.ds <- DESeqDataSetFromMatrix(countData = as.matrix(readcounts[,1:6]),
+                                   colData = sample_info[1:6,],
+                                   rowData = first_cols,
+                                   design = ~ Culture)
+
+DESeqPC.ds <- DESeqDataSetFromMatrix(countData = as.matrix(readcounts[,7:12]),
+                                   colData = sample_info[7:12,],
+                                   rowData = first_cols,
+                                   design = ~ Culture)
+```
+
+```{r}
+DESeq.ds <- DESeqDataSetFromMatrix(countData = as.matrix(readcounts),
+                                   colData = sample_info,
+                                   rowData = first_cols,
+                                   design = ~ celltype + condition + celltype:condition)
+```
+
+```{r}
+DESeq.ds.DU <- DESeq.ds[ , DESeq.ds$celltype %in% c("DU145")]
+DESeq.ds.PC <- DESeq.ds[ , DESeq.ds$celltype %in% c("PC3")]
+```
+
+
+```{r}
+dim(DESeq.ds)
+dim(DESeq.ds.DU)
+dim(DESeq.ds.PC)
+
+keep_genes <- rowSums(counts(DESeq.ds)) > 0
+DESeq.ds <- DESeq.ds[ keep_genes, ]
+
+keep_genesDU <- rowSums(counts(DESeq.ds.DU)) > 0
+DESeq.ds.DU <- DESeq.ds.DU[ keep_genesDU, ]
+
+keep_genesPC <- rowSums(counts(DESeq.ds.PC)) > 0
+DESeq.ds.PC <- DESeq.ds.PC[ keep_genesPC, ]
+
+dim(DESeq.ds)
+dim(DESeq.ds.DU)
+dim(DESeq.ds.PC)
+```
+
+
+```{r}
+#colSums(counts(DESeqDU.ds))
+
+par(mfrow=c(1,3))
+
+colSums(counts(DESeq.ds)) %>% barplot
+
+colSums(counts(DESeq.ds.DU)) %>% barplot
+
+colSums(counts(DESeq.ds.PC)) %>% barplot
+```
+
+
+
+As you can see, there are now fewer features stored in the DESeq.ds (first entry of the dim() result). The
+filtering was also translated to the count matrix that we store in that object (and all other matrices stored in
+the assay slot).
+
+```{r}
+counts(DESeq.ds[]) %>% str
+assay(DESeq.ds) %>% str
+
+```
+
+## Normalizing for sequencing depth and RNA composition differences
+Now that we have the data, we can start using DESeq2’s functions, e.g. estimateSizeFactors() for sequencing
+depth normalization.
+The size factor is calculated as follows:
+1. For every gene, the geometric mean of counts is calculated across all samples ( = “pseudo baseline
+expression”).
+2. For every gene, the ratio of its counts within a specific sample to the pseudo-baseline is calculated (e.g.,
+Sample A/pseudo baseline, Sample B/pseudo baseline).
+3. For every sample (columns!), the median of the ratios from step 2 is calculated. This is the size factor.
+
+### Assumptions of DESeq’s size factor method:
+• There is the assumption that most genes are not changing across conditions!
+• Size factors should be around 1.
+• Normalized counts are calculated
+
+### Calculating and applying the size factor
+
+
+
+```{r}
+DESeq.ds <- estimateSizeFactors(DESeq.ds) # calculate SFs, add them to object
+plot( sizeFactors(DESeq.ds), colSums(counts(DESeq.ds)), # assess them
+      ylab = "library sizes", xlab = "size factors", cex = .6 )
+```
+
+
+The read counts normalized for sequencing depth can be accessed via counts(..., normalized = TRUE).
+Let’s check whether the normalization helped adjust global differences between the samples.
+
+```{r}
+
+par(mfrow=c(1,2))
+
+DESeq.ds.DU <- estimateSizeFactors(DESeq.ds.DU) # calculate SFs, add them to object
+plot( sizeFactors(DESeq.ds.DU), colSums(counts(DESeq.ds.DU)), # assess them
+      ylab = "library sizes", xlab = "size factors", cex = .6 ,  main="DU145")
+
+DESeq.ds.PC <- estimateSizeFactors(DESeq.ds.PC) # calculate SFs, add them to object
+plot( sizeFactors(DESeq.ds.PC), colSums(counts(DESeq.ds.PC)), # assess them
+      ylab = "library sizes", xlab = "size factors", cex = .6, main="PC3")
+```
+
+
+```{r}
+## setting up the plotting layout
+par(mfrow=c(2,2))
+
+## extracting normalized counts
+countsDU.sf_normalized <- counts(DESeq.ds.DU, normalized=TRUE)
+
+## adding the boxplots
+boxplot(countsDU.sf_normalized, main = "DU145 SF normalized", cex = .6)
+boxplot(counts(DESeq.ds.DU), main = "DU145 read counts only", cex = .6)
+
+## extracting normalized counts
+countsPC.sf_normalized <- counts(DESeq.ds.PC, normalized=TRUE)
+
+## adding the boxplots
+boxplot(countsPC.sf_normalized, main = "PC3 SF normalized", cex = .6)
+boxplot(counts(DESeq.ds.PC), main = "PC3 read counts only", cex = .6)
+```
+
+We can’t really see anything because the range of the read counts is so large that it covers several orders of
+magnitude. For those cases, it is usually helpful to transform the normalized read counts to bring them onto
+more similar scales.
+
+  To see the influence of the sequencing depth normalization, make two box plots of log2(read counts):
+  - one for non-normalized counts - the other one for normalized counts
+
+```{r}
+par(mfrow=c(1,2)) # to plot the two box plots next to each other
+
+## bp of non-normalized
+boxplot(log2(counts(DESeq.ds)+1), notch=TRUE,
+        main = "Non-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+
+## bp of size-factor normalized values
+boxplot(log2(counts(DESeq.ds, normalize= TRUE) +1), notch=TRUE,
+        main = "Size-factor-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+```
+
+```{r}
+par(mfrow=c(2,2)) # to plot the two box plots next to each other
+
+## bp of non-normalized
+boxplot(log2(counts(DESeq.ds.DU)+1), notch=TRUE,
+        main = "DU145 Non-normalized read counts",
+        ylab="DU145 log2(read counts)", cex = .6)
+
+## bp of size-factor normalized values
+boxplot(log2(counts(DESeq.ds.DU, normalize= TRUE) +1), notch=TRUE,
+        main = "DU145 Size-factor-normalized read counts",
+        ylab="DU145 log2(read counts)", cex = .6)
+
+## bp of non-normalized
+boxplot(log2(counts(DESeq.ds.PC)+1), notch=TRUE,
+        main = "PC3 Non-normalized read counts",
+        ylab="PC3 log2(read counts)", cex = .6)
+
+## bp of size-factor normalized values
+boxplot(log2(counts(DESeq.ds.PC, normalize= TRUE) +1), notch=TRUE,
+        main = "PC3 Size-factor-normalized read counts",
+        ylab="PC3 log2(read counts)", cex = .6)
+```
+
+## Understanding more properties of read count data
+Characteristics we’ve seen so far:
+• zeros can mean two things: no expression or no detection
+• the read counts cover a fairly large dynamic range
+Make a scatterplot of log normalized counts against each other to see how well the actual values
+correlate which each other per sample and gene. Focus on two samples.
+
+```{r}
+## non-normalized read counts plus pseudocount
+log.counts <- log2(counts(DESeq.ds, normalized = FALSE) + 1)
+
+## instead of creating a new object, we could assign the values to a distinct matrix
+## within the DESeq.ds object
+assay(DESeq.ds, "log.counts") <- log2(counts(DESeq.ds, normalized = FALSE) + 1)
+
+## normalized read counts
+log.norm.counts <- log2(counts(DESeq.ds, normalized=TRUE) + 1)
+assay(DESeq.ds, "log.norm.counts") <- log.norm.counts
+```
+
+```{r}
+## non-normalized read counts plus pseudocount
+log.countsDU <- log2(counts(DESeq.ds.DU, normalized = FALSE) + 1)
+
+## instead of creating a new object, we could assign the values to a distinct matrix
+## within the DESeq.ds object
+assay(DESeq.ds.DU, "log.counts") <- log2(counts(DESeq.ds.DU, normalized = FALSE) + 1)
+
+## normalized read counts
+log.norm.countsDU <- log2(counts(DESeq.ds.DU, normalized=TRUE) + 1)
+assay(DESeq.ds.DU, "log.norm.counts") <- log.norm.countsDU
+```
+
+```{r}
+## non-normalized read counts plus pseudocount
+log.countsDU <- log2(counts(DESeq.ds.PC, normalized = FALSE) + 1)
+
+## instead of creating a new object, we could assign the values to a distinct matrix
+## within the DESeq.ds object
+assay(DESeq.ds.PC, "log.counts") <- log2(counts(DESeq.ds.PC, normalized = FALSE) + 1)
+
+## normalized read counts
+log.norm.countsPC <- log2(counts(DESeq.ds.PC, normalized=TRUE) + 1)
+assay(DESeq.ds.PC, "log.norm.counts") <- log.norm.countsPC
+```
+
+```{r}
+par(mfrow=c(1,2))
+
+DESeq.ds[, c("WT_DU145_1","WT_DU145_2")] %>%
+  assay(., "log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs. WT_2")
+
+DESeq.ds[, c("WT_DU145_1","SPINK1_DU145_1")] %>%
+  assay(., "log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs SPINK1_1")
+```
+```{r}
+par(mfrow=c(1,2))
+
+DESeq.ds.DU[, c("WT_DU145_1","WT_DU145_2")] %>%
+  assay(., "log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs. WT_2")
+
+DESeq.ds.DU[, c("WT_DU145_1","SPINK1_DU145_1")] %>%
+  assay(., "log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs SPINK1_1")
+```
+Every dot = one gene.
+The fanning out of the points in the lower left corner (points below 25 = 32) indicates that read counts
+correlate less well between replicates when they are low.
+This observation indicates that the standard deviation of the expression levels may depend on the mean: the
+lower the mean read counts per gene, the higher the standard deviation.
+This can be assessed visually; the package vsn offers a simple function for this.
+
+```{r}
+## generate the base meanSdPlot using sequencing depth normalized log2(read counts)
+log.norm.counts <- log2(counts(DESeq.ds, normalized=TRUE) + 1)
+## set up ploting frames
+par(mfrow=c(1,1))
+## generate the plot
+
+msd_plot <- vsn::meanSdPlot(log.norm.counts,
+                            ranks=FALSE, # show the data on the original scale
+                            plot = FALSE)
+## since vsn::meanSdPlot generates a ggplot2 object, this can be
+## manipulated in the usual ways
+
+msd_plot$gg +
+  ggtitle("Sequencing depth normalized log2(read counts)") +
+  ylab("standard deviation")
+```
+
+```{r}
+## generate the base meanSdPlot using sequencing depth normalized log2(read counts)
+log.norm.countsDU <- log2(counts(DESeq.ds.DU, normalized=TRUE) + 1)
+log.norm.countsPC <- log2(counts(DESeq.ds.PC, normalized=TRUE) + 1)
+
+## set up ploting frames
+par(mfrow=c(1,2))
+## generate the plot
+
+msd_plotDU <- vsn::meanSdPlot(log.norm.countsDU,
+                            ranks=FALSE, # show the data on the original scale
+                            plot = FALSE)
+## since vsn::meanSdPlot generates a ggplot2 object, this can be
+## manipulated in the usual ways
+
+msd_plotDU$gg +
+  ggtitle("DU145 Sequencing depth normalized log2(read counts)") +
+  ylab("standard deviation")
+
+msd_plotPC <- vsn::meanSdPlot(log.norm.countsPC,
+                            ranks=FALSE, # show the data on the original scale
+                            plot = FALSE)
+## since vsn::meanSdPlot generates a ggplot2 object, this can be
+## manipulated in the usual ways
+
+msd_plotPC$gg +
+  ggtitle("PC3 Sequencing depth normalized log2(read counts)") +
+  ylab("standard deviation")
+```
+
+From the help for meanSdPlot:
+
+The red dots depict the running median estimator (window-width 10 percent). If there is
+no variance-mean dependence, then the line formed by the red dots should be approximately
+horizontal.
+
+The plot here shows that there is some variance-mean dependence for genes with low read counts. This means
+that the data shows signs of heteroskedasticity.
+Many tools expect data to be homoskedastic, i.e., all variables should have similar variances.
+
+### Reducing the dependence of the variance on the mean
+DESeq offers two ways to shrink the log-transformed counts for genes with very low counts: rlog and
+varianceStabilizingTransformation (vst).
+We’ll use rlog here as it is an optimized method for RNA-seq read counts: it transforms the read counts to
+the log2 scale while simultaneously minimizing the difference between samples for rows with small counts and
+taking differences between library sizes of the samples into account. More specifically, the expression values
+are modeled in such a manner that their dispersion is not based on the actual variability an individual gene
+may show across its replicates, instead, its variability is based on the general dispersion-mean trend over the
+entire dataset. This is possible because DESeq2 assumes that “genes of similar average expression strength
+have similar dispersion”. This is important as it allows us to base our estimation of the noise on a much larger
+data universe than what would normally provided by the original number of replicates. For example, in our
+data set here, we only have 10 measurements per gene. That is not a lot of values to robustly estimate the
+noise! However, following DESeq2’s assumption, we can thus increase our number of data points significantly
+by assuming that all genes that share similar average expression values across all samples should
+also display similar noise levels. This assumption works very well on a global scale, but it also means that 
+you cannot (!) take the rlog values at face value when looking at single genes, because their normalized
+metrics are now influenced by of all of the measurements for genes in the same expression strength bin.
+The vst methods tends to depend a bit more on the differences in sequencing depths, but generally, both
+methods should return similar results.
+
+```{r}
+par(mfrow=c(1,2))
+
+DESeq.rlog <- rlog(DESeq.ds, blind = TRUE)
+
+plot(assay(DESeq.rlog)[,1],
+     assay(DESeq.rlog)[,2],
+     cex=.1, main = "rlog transformed",
+     xlab = colnames(assay(DESeq.rlog[,1])),
+     ylab = colnames(assay(DESeq.rlog[,2])) )
+
+DESeq.rlog <- rlog(DESeq.ds, blind = FALSE)
+
+plot(assay(DESeq.rlog)[,1],
+     assay(DESeq.rlog)[,2],
+     cex=.1, main = "rlog transformed",
+     xlab = colnames(assay(DESeq.rlog[,1])),
+     ylab = colnames(assay(DESeq.rlog[,2])) )
+```
+
+
+
+```{r}
+## this actually generates a different type of object!
+DESeq.rlog <- rlog(DESeq.ds, blind = TRUE)
+## set blind = FALSE if the conditions are expected to introduce
+## strong differences in a large proportion of the genes
+
+DESeq.rlog.DU <- rlog(DESeq.ds.DU, blind = TRUE)
+DESeq.rlog.PC <- rlog(DESeq.ds.PC, blind = TRUE)
+
+```
+
+Let’s visually check the results of the rlog transformation:
+
+```{r}
+par(mfrow=c(1,2))
+
+plot(log.norm.counts[,1:2], cex=.1,
+     main = "size factor and log2-transformed")
+
+## the rlog-transformed counts are stored in the accessor "assay"
+plot(assay(DESeq.rlog)[,1],
+     assay(DESeq.rlog)[,2],
+     cex=.1, main = "rlog transformed",
+     xlab = colnames(assay(DESeq.rlog[,1])),
+     ylab = colnames(assay(DESeq.rlog[,2])) )
+```
+
+
+
+
+```{r}
+par(mfrow=c(1,2))
+
+plot(log.norm.countsDU[,1:2], cex=.1,
+     main = "size factor and log2-transformed")
+
+## the rlog-transformed counts are stored in the accessor "assay"
+plot(assay(DESeq.rlog.DU)[,1],
+     assay(DESeq.rlog.DU)[,2],
+     cex=.1, main = "rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.DU[,1])),
+     ylab = colnames(assay(DESeq.rlog.DU[,2])) )
+```
+
+```{r}
+par(mfrow=c(1,2))
+
+plot(log.norm.countsPC[,1:2], cex=.1,
+     main = "size factor and log2-transformed")
+
+## the rlog-transformed counts are stored in the accessor "assay"
+plot(assay(DESeq.rlog.PC)[,1],
+     assay(DESeq.rlog.PC)[,2],
+     cex=.1, main = "rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.PC[,1])),
+     ylab = colnames(assay(DESeq.rlog.PC[,2])) )
+```
+
+
+```{r}
+rlog.norm.counts <- assay(DESeq.rlog)
+
+rlog.norm.countsDU <- assay(DESeq.rlog.PC)
+rlog.norm.countsPC <- assay(DESeq.rlog.PC)
+```
+
+As you can see in the left plot, the variance - that is higher for small read counts - is tightened significantly
+using rlog.
+
+What does the mean-sd-plot show?
+
+```{r}
+## rlog-transformed read counts
+msd_plot <- vsn::meanSdPlot( rlog.norm.counts, ranks=FALSE, plot = FALSE)
+
+msd_plot$gg + ggtitle("Following rlog transformation") +
+  coord_cartesian(ylim = c(0,3))
+```
+
+```{r}
+par(mfrow=c(1,2))
+
+## rlog-transformed read counts
+msd_plotDU <- vsn::meanSdPlot( rlog.norm.countsDU, ranks=FALSE, plot = FALSE)
+msd_plotPC <- vsn::meanSdPlot( rlog.norm.countsPC, ranks=FALSE, plot = FALSE)
+
+
+msd_plotDU$gg + ggtitle("Following rlog transformation") +
+  coord_cartesian(ylim = c(0,3))
+
+msd_plotPC$gg + ggtitle("Following rlog transformation") +
+  coord_cartesian(ylim = c(0,3))
+```
+
+```{r}
+
+#DESeq.rlog <- rlog(DESeq.ds, blind = TRUE)
+## set blind = FALSE if the conditions are expected to introduce
+## strong differences in a large proportion of the genes
+
+#DESeq.rlog.DU <- rlog(DESeq.ds.DU, blind = TRUE)
+#DESeq.rlog.PC <- rlog(DESeq.ds.PC, blind = TRUE)
+
+plotPCA(DESeq.rlog,intgroup=c("condition", "celltype"))  + coord_cartesian()
+
+```
+```{r}
+plotPCA(DESeq.rlog.DU,intgroup=c("condition", "celltype"))  + coord_cartesian()
+```
+
+```{r}
+plotPCA(DESeq.rlog.PC,intgroup=c("condition", "celltype"))  + coord_cartesian()
+```
+
+It’s not perfect, but it looks much better than before.
+Now, we have expression values that have been adjusted for:
+• differences in sequencing depth;
+• differences in RNA composition;
+• heteroskedasticity;
+• large dynamic range.
+These values are now more realistic (albeit not perfect) representations of relative expression strengths of
+genes and they can now be used for exploratory analyses.
+For DE analyses, we will eventually supply the raw counts, though (because the DE tests will
+require their own modeling of the gene counts and they need to know the original noise and
+limitations associated with the raw counts).
+Before we exit the session, let’s make sure our objects are stored on disk to be loaded into future sessions:
+
+```{r}
+save.image(file = "Final_Preprocessing.RData")
+```
+
+
+
