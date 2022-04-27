@@ -1,0 +1,380 @@
+---
+title: "Final_Project_Alignment_Read_Counts_scratch"
+author: "Gabriel Deards"
+date: "4/22/2022"
+output: html_document
+---
+
+```{r}
+library(DESeq2)
+library(magrittr)
+## additional packages:
+# BiocManager::install("apeglm") will be needed later on
+# BiocManager::install("goseq")
+## should have the DESeq object, DESeq.ds
+
+load("DESeq_processing.RData2")
+
+#save.image("DESeq_processing.RData2")
+
+```
+
+DESeq.ds
+DESeq.ds.DU
+DESeq.ds.PC
+
+DESeq.ds.filter
+DESeq.ds.DU.filter
+DESeq.ds.PC.filter
+
+DESeq.ds.DU.split
+DESeq.ds.PC.split
+
+
+```{r}
+DESeq.ds$condition
+DESeq.ds$celltype
+
+```
+
+
+
+```{r}
+DESeq.ds$condition <- relevel(DESeq.ds$condition, ref="WT")
+DESeq.ds$condition
+```
+
+```{r}
+design(DESeq.ds)
+design(DESeq.ds.DU)
+design(DESeq.ds.PC)
+design(DESeq.ds.filter)
+design(DESeq.ds.DU.filter)
+design(DESeq.ds.PC.filter)
+design(DESeq.ds.DU.split)
+design(DESeq.ds.PC.split)
+```
+
+```{r}
+DESeq.ds <- DESeq(DESeq.ds)
+
+DESeq.ds.DU$condition <- relevel(DESeq.ds.DU$condition, ref="WT")
+DESeq.ds.DU$condition
+
+
+DESeq.ds.DU.split <- DESeq(DESeq.ds.DU.split)
+DESeq.ds.PC.split <- DESeq(DESeq.ds.PC.split)
+
+```
+
+```{r}
+DGE.results <- results(DESeq.ds, independentFiltering = TRUE, alpha = 0.05)
+DGE.results.DU.split <- results(DESeq.ds.DU.split, independentFiltering = TRUE, alpha = 0.05)
+DGE.results.PC.split <- results(DESeq.ds.PC.split, independentFiltering = TRUE, alpha = 0.05)
+
+
+
+```
+
+```{r}
+# the first line will tell you which comparison was done to achieve the log2FC
+
+full_names <- rownames(DGE.results)
+DU.split_names <- rownames(DGE.results.DU.split)
+PC.split_names <- rownames(DGE.results.PC.split)
+
+
+rownames(DGE.results) <- first_cols[first_cols[,1] %in% rownames(DGE.results),7]
+rownames(DGE.results.DU.split) <- first_cols[first_cols[,1] %in% rownames(DGE.results.DU.split),7]
+rownames(DGE.results.PC.split) <- first_cols[first_cols[,1] %in% rownames(DGE.results.PC.split),7]
+
+
+
+
+```
+
+```{r}
+head(DGE.results)
+head(DGE.results.DU.split)
+head(DGE.results.PC.split)
+```
+
+
+
+```{r}
+summary(DGE.results)
+summary(DGE.results.DU.split)
+summary(DGE.results.PC.split)
+```
+
+```{r}
+# the DESeqResult object can basically be handled like a data.frame
+table(DGE.results$padj < 0.05)
+table(DGE.results.DU.split$padj < 0.05)
+table(DGE.results.PC.split$padj < 0.05)
+
+```
+
+```{r}
+hist(DGE.results$padj,
+     col="grey", border="white", xlab="", ylab="",
+     main="frequencies of adj. p-values\n(all genes)",
+     cex = 0.4)
+
+hist(DGE.results.DU.split$padj,
+     col="blue", border="white", xlab="", ylab="",
+     main="frequencies of adj. p-values\n(all genes)",
+     cex = 0.4)
+
+hist(DGE.results.PC.split$padj,
+     col="red", border="white", xlab="", ylab="",
+     main="frequencies of adj. p-values\n(all genes)",
+     cex = 0.4)
+```
+
+```{r}
+rownames(DGE.results) <- full_names
+rownames(DGE.results.DU.split) <- DU.split_names
+rownames(DGE.results.PC.split) <- PC.split_names
+
+DGE.results.sorted <- DGE.results[order(DGE.results$padj),]
+DGE.results.sorted.DU.split <- DGE.results.DU.split[order(DGE.results.DU.split$padj),]
+DGE.results.sorted.PC.split <- DGE.results.PC.split[order(DGE.results.PC.split$padj),]
+
+
+
+
+
+```
+
+```{r}
+head(DGE.results.sorted)
+head(DGE.results.sorted.DU.split)
+head(DGE.results.sorted.PC.split)
+```
+
+
+```{r}
+par(mfrow=c(1,2))
+plotCounts(DESeq.ds, gene="ENSG00000112096.19", normalized = TRUE, main=paste(first_cols[first_cols[,1]=="ENSG00000112096.19",7]))
+plotCounts(DESeq.ds, gene = which.max(DGE.results$padj),
+           main = "Gene with max. p.adj.\n(=least significant)")
+```
+
+
+```{r}
+# identify genes with the desired adjusted p-value cut-off
+DGEgenes <- rownames(subset(DGE.results.sorted, padj < 0.05))
+DGEgenes.DU.split <- rownames(subset(DGE.results.sorted.DU.split, padj < 0.05))
+DGEgenes.PC.split <- rownames(subset(DGE.results.sorted.PC.split, padj < 0.05))
+
+
+
+# extract rlog-transformed values into a matrix
+rlog.dge <- DESeq.rlog[DGEgenes,] %>% assay
+rlog.dge.DU.split <- DESeq.rlog.DU.split[DGEgenes.DU.split,] %>% assay
+rlog.dge.PC.split <- DESeq.rlog.PC.split[DGEgenes.PC.split,] %>% assay
+
+
+
+library(pheatmap)
+# heatmap of DEG sorted by p.adjust
+pheatmap(rlog.dge, scale="none",
+         show_rownames = FALSE, main = "DGE (no scaling)",
+         color = colorRampPalette(RColorBrewer::brewer.pal(n = 7, name = "Reds"))(100))
+
+pheatmap(rlog.dge.DU.split, scale="none",
+         show_rownames = FALSE, main = "DGE (no scaling)",
+         color = colorRampPalette(RColorBrewer::brewer.pal(n = 7, name = "Reds"))(100))
+
+pheatmap(rlog.dge.PC.split, scale="none",
+         show_rownames = FALSE, main = "DGE (no scaling)",
+         color = colorRampPalette(RColorBrewer::brewer.pal(n = 7, name = "Reds"))(100))
+```
+
+```{r}
+pheatmap(rlog.dge, scale="row",
+show_rownames = FALSE, main = "DGE (row-based z-score)")
+```
+
+```{r}
+pheatmap(rlog.dge.DU.split, scale="row",
+show_rownames = FALSE, main = "DU145 DGE (row-based z-score)")
+```
+
+```{r}
+pheatmap(rlog.dge.PC.split, scale="row",
+show_rownames = FALSE, main = "PC3 DGE (row-based z-score)")
+```
+
+
+```{r}
+plotMA(DGE.results, alpha = 0.05,
+       main = "Test: p.adj.value < 0.05", ylim = c(-4,4))
+```
+
+```{r}
+plotMA(DGE.results.DU.split, alpha = 0.05,
+       main = "Test: p.adj.value < 0.05", ylim = c(-4,4))
+```
+
+```{r}
+plotMA(DGE.results.PC.split, alpha = 0.05,
+       main = "Test: p.adj.value < 0.05", ylim = c(-4,4))
+```
+
+
+```{r}
+#BiocManager::install("EnhancedVolcano")
+library(EnhancedVolcano)
+vp1 <- EnhancedVolcano(DGE.results,
+                       lab = first_cols[first_cols[,1] %in% rownames(DGE.results),7],
+                       x = 'log2FoldChange',
+                       y = 'padj', pCutoff = 0.05,
+                       title = "SNF2 / WT")
+print(vp1)
+```
+```{r}
+#BiocManager::install("EnhancedVolcano")
+library(EnhancedVolcano)
+vp1.DU <- EnhancedVolcano(DGE.results.DU.split,
+                       lab = first_cols[first_cols[,1] %in% rownames(DGE.results.DU.split),7],
+                       x = 'log2FoldChange',
+                       y = 'padj', pCutoff = 0.05,
+                       title = "SNF2 / WT")
+print(vp1.DU)
+```
+
+```{r}
+#BiocManager::install("EnhancedVolcano")
+library(EnhancedVolcano)
+vp1.PC <- EnhancedVolcano(DGE.results.PC.split,
+                       lab = first_cols[first_cols[,1] %in% rownames(DGE.results.PC.split),7],
+                       x = 'log2FoldChange',
+                       y = 'padj', pCutoff = 0.05,
+                       title = "SNF2 / WT")
+print(vp1.PC)
+```
+
+
+```{r}
+## internally, lfcShrink will call results()
+DGE.results.shrink <- lfcShrink(DESeq.ds,
+                               coef = 2, # see below for explanation
+                               type = "apeglm") # see Zhu et al. (2018)
+```
+
+```{r}
+resultsNames(DESeq.ds)
+```
+
+```{r}
+par(mfrow = c(1,2))
+plotMA(DGE.results, alpha = 0.05,
+       main = "no shrinkage", ylim = c(-4,4))
+
+plotMA(DGE.results.shrink,
+       alpha = 0.05,
+       main = "with logFC shrinkage", ylim = c(-4,4))
+```
+
+```{r}
+vp2 <- EnhancedVolcano(DGE.results.shrink,
+                       #lab = rownames(DGE.results.shrink),
+                       lab = first_cols[first_cols[,1] %in% rownames(DGE.results.shrink),7],
+                       x = 'log2FoldChange',
+                       y = 'padj', pCutoff = 0.05,
+                       title = "with logFC shrinkage")
+
+library(patchwork)
+vp1 + vp2
+```
+
+```{r}
+# BiocManager::install("org.Sc.sgd.db") # install if needed
+library(org.Sc.sgd.db) # see also: org.Hs.eg.db, org.Mm.eg.db
+
+# list keytypes that are available to query the annotation data base
+keytypes(org.Sc.sgd.db)
+```
+
+```{r}
+# list columns that can be retrieved from the annotation data base
+columns(org.Sc.sgd.db)
+```
+
+```{r}
+# make a batch retrieval for all DE genes
+DGEgenes <- rownames(subset(DGE.results.sorted, padj < 0.05))
+anno.DGE <- select(org.Sc.sgd.db,
+                   keys = DGEgenes, # original rownames of DGE results
+                   keytype="ENSEMBL", # our rownames are ORF identifiers
+                   columns=c("SGD","GENENAME")) # what to return
+
+## check whether SNF2 pops up among the top downregulated genes
+head(anno.DGE)
+```
+
+```{r}
+par(mfrow=c(1,2))
+plotCounts(dds = DESeq.ds,
+           gene = "YOR290C", # SNF2
+           normalized = TRUE, transform = FALSE,
+           main = expression(atop("Expression of "*italic("snf2"), "(YOR290C)")))
+
+plotCounts(dds = DESeq.ds,
+           gene = "YGL012W", # the last gene in DGE
+           normalized = TRUE, transform = FALSE,
+           main = expression(atop("Expression of "*italic("erg4"), "(YGL012W)")))
+```
+
+
+
+```{r}
+res = results(DESeq.ds, contrast=c("condition", "WT", "SPINK1"))
+ix = which.min(res$padj) # most significant
+res <- res[order(res$padj),] # sort
+res[1:5,-(3:4)]
+```
+
+```{r}
+barplot(assay(DESeq.ds)[ix,],las=2, main=first_cols[first_cols[,1] %in% rownames(DGE.results.shrink),7][ ix  ]  )
+```
+
+```{r}
+res <- results(DESeq.ds, list( c("condition_SPINK1_vs_WT","celltypePC3.conditionSPINK1") ))
+ix = which.min(res$padj) # most significant
+res <- res[order(res$padj),] # sort
+res[1:5,-(3:4)]
+```
+
+```{r}
+barplot(assay(DESeq.ds)[ix,],las=2, main=first_cols[first_cols[,1] %in% rownames(DGE.results.shrink),7][ ix  ]  )
+```
+
+```{r}
+res = results(DESeq.ds, contrast=c("celltype","DU145","PC3"))
+ix = which.min(res$padj) # most significant
+res <- res[order(res$padj),] # sort
+res[1:5,-(3:4)]
+```
+
+```{r}
+barplot(assay(DESeq.ds)[ix,],las=2, main=first_cols[first_cols[,1] %in% rownames(DGE.results.shrink),7][ ix  ]  )
+```
+
+```{r}
+res = results(DESeq.ds, name="celltypePC3.conditionSPINK1")
+ix = which.min(res$padj) # most significant
+res <- res[order(res$padj),] # sort
+res[1:5,-(3:4)]
+```
+
+```{r}
+barplot(assay(DESeq.ds)[ix,],las=2, main=first_cols[first_cols[,1] %in% rownames(DGE.results.shrink),7][ ix  ]  )
+```
+
+```{r}
+
+```
+

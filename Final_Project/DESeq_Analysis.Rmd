@@ -1,0 +1,1056 @@
+---
+title: "DESeq_Analysis"
+author: "Gabriel Deards"
+date: "4/24/2022"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+Our various packages necessary for running subsiquent code.
+
+```{r package_loading, echo=FALSE}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+library(ggplot2)
+library(magrittr)
+library(DESeq2)
+library(tidyr)
+library(tidyverse)
+# BiocManager::install("vsn")
+library(vsn)
+#BiocManager::install("plyranges")
+library(plyranges)  
+
+
+#install.packages('hexbin') # re: https://github.com/tidyverse/ggplot2/issues/1232
+
+load("Final_Preprocessing.RData")
+```
+
+
+### **DESeq.ds.DU**
+
+```{r}
+dim(DESeq.ds.DU)
+
+keep_genes.DU <- rowSums(counts(DESeq.ds.DU)) > 0
+DESeq.ds.DU <- DESeq.ds.DU[ keep_genes.DU, ]
+
+dim(DESeq.ds.DU)
+
+
+
+dim(DESeq.ds.DU.split)
+
+keep_genes.DU.split <- rowSums(counts(DESeq.ds.DU.split)) > 0
+DESeq.ds.DU.split <- DESeq.ds.DU.split[ keep_genes.DU.split, ]
+
+dim(DESeq.ds.DU.split)
+
+```
+
+
+
+```{r}
+
+par(mfrow=c(1,2))
+colSums(counts(DESeq.ds.DU)) %>% barplot
+colSums(counts(DESeq.ds.DU.split)) %>% barplot
+
+```
+
+
+```{r}
+par(mfrow=c(1,2))
+
+DESeq.ds.DU <- estimateSizeFactors(DESeq.ds.DU) # calculate SFs, add them to object
+plot( sizeFactors(DESeq.ds.DU), colSums(counts(DESeq.ds.DU)), # assess them
+      ylab = "library sizes", xlab = "size factors", cex = .6 )
+
+
+DESeq.ds.DU.split <- estimateSizeFactors(DESeq.ds.DU.split) # calculate SFs, add them to object
+plot( sizeFactors(DESeq.ds.DU.split), colSums(counts(DESeq.ds.DU.split)), # assess them
+      ylab = "library sizes", xlab = "size factors", cex = .6 )
+```
+
+
+```{r}
+## setting up the plotting layout
+par(mfrow=c(2,2))
+
+## extracting normalized counts
+counts.sf_normalized.DU <- counts(DESeq.ds.DU, normalized=TRUE)
+
+## adding the boxplots
+boxplot(counts.sf_normalized.DU, main = "DU SF normalized", cex = .6)
+boxplot(counts(DESeq.ds.DU), main = "DU read counts only", cex = .6)
+
+## extracting normalized counts
+counts.sf_normalized.DU.split <- counts(DESeq.ds.DU.split, normalized=TRUE)
+
+## adding the boxplots
+boxplot(counts.sf_normalized.DU.split, main = "DU.split SF normalized", cex = .6)
+boxplot(counts(DESeq.ds.DU.split), main = "DU.split read counts only", cex = .6)
+
+
+```
+
+
+```{r}
+par(mfrow=c(2,2)) # to plot the two box plots next to each other
+
+## bp of non-normalized
+boxplot(log2(counts(DESeq.ds.DU.split)+1), notch=TRUE,
+        main = "DU Non-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+
+## bp of size-factor normalized values
+boxplot(log2(counts(DESeq.ds.DU, normalize= TRUE) +1), notch=TRUE,
+        main = "DU Size-factor-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+
+## bp of non-normalized
+boxplot(log2(counts(DESeq.ds.DU.split)+1), notch=TRUE,
+        main = "DU Non-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+
+## bp of size-factor normalized values
+boxplot(log2(counts(DESeq.ds.DU.split, normalize= TRUE) +1), notch=TRUE,
+        main = "DU.split Size-factor-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+```
+
+```{r}
+## non-normalized read counts plus pseudocount
+log.counts.DU <- log2(counts(DESeq.ds.DU, normalized = FALSE) + 1)
+
+## instead of creating a new object, we could assign the values to a distinct matrix
+## within the DESeq.ds object
+assay(DESeq.ds.DU, "DU log.counts") <- log2(counts(DESeq.ds.DU, normalized = FALSE) + 1)
+
+## normalized read counts
+log.norm.counts.DU <- log2(counts(DESeq.ds.DU, normalized=TRUE) + 1)
+assay(DESeq.ds.DU, "DU log.norm.counts") <- log.norm.counts.DU
+
+## non-normalized read counts plus pseudocount
+log.counts.DU.split <- log2(counts(DESeq.ds.DU.split, normalized = FALSE) + 1)
+
+## instead of creating a new object, we could assign the values to a distinct matrix
+## within the DESeq.ds object
+assay(DESeq.ds.DU.split, "DU.split log.counts") <- log2(counts(DESeq.ds.DU.split, normalized = FALSE) + 1)
+
+## normalized read counts
+log.norm.counts.DU.split <- log2(counts(DESeq.ds.DU.split, normalized=TRUE) + 1)
+assay(DESeq.ds.DU.split, "DU.split log.norm.counts") <- log.norm.counts.DU.split
+```
+
+```{r}
+par(mfrow=c(2,2))
+
+DESeq.ds.DU[, c("WT_DU145_1","WT_DU145_2")] %>%
+  assay(., "DU log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs. WT_2")
+
+DESeq.ds.DU[, c("WT_DU145_1","SPINK1_DU145_1")] %>%
+  assay(., "DU log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs SPINK1_1")
+
+
+DESeq.ds.DU.split[, c("WT_DU145_1","WT_DU145_2")] %>%
+  assay(., "DU.split log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs. WT_2")
+
+DESeq.ds.DU.split[, c("WT_DU145_1","SPINK1_DU145_1")] %>%
+  assay(., "DU.split log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs SPINK1_1")
+```
+
+```{r}
+## generate the base meanSdPlot using sequencing depth normalized log2(read counts)
+log.norm.counts.DU <- log2(counts(DESeq.ds.DU, normalized=TRUE) + 1)
+log.norm.counts.DU.split <- log2(counts(DESeq.ds.DU.split, normalized=TRUE) + 1)
+
+## set up ploting frames
+par(mfrow=c(1,2))
+## generate the plot
+
+msd_plot.DU <- vsn::meanSdPlot(log.norm.counts.DU,
+                            ranks=FALSE, # show the data on the original scale
+                            plot = FALSE)
+## since vsn::meanSdPlot generates a ggplot2 object, this can be
+## manipulated in the usual ways
+
+msd_plot.DU$gg +
+  ggtitle("DU Sequencing depth normalized log2(read counts)") +
+  ylab("standard deviation")
+
+msd_plot.DU.split <- vsn::meanSdPlot(log.norm.counts.DU.split,
+                            ranks=FALSE, # show the data on the original scale
+                            plot = FALSE)
+## since vsn::meanSdPlot generates a ggplot2 object, this can be
+## manipulated in the usual ways
+
+msd_plot.DU.split$gg +
+  ggtitle("DU.split Sequencing depth normalized log2(read counts)") +
+  ylab("standard deviation")
+```
+
+```{r}
+par(mfrow=c(1,3))
+
+DESeq.rlog.DU <- rlog(DESeq.ds.DU, blind = TRUE)
+
+plot(assay(DESeq.rlog.DU)[,1],
+     assay(DESeq.rlog.DU)[,2],
+     cex=.1, main = "rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.DU[,1])),
+     ylab = colnames(assay(DESeq.rlog.DU[,2])) )
+
+
+
+DESeq.rlog.DU.split <- rlog(DESeq.ds.DU.split, blind = TRUE)
+
+plot(assay(DESeq.rlog.DU.split)[,1],
+     assay(DESeq.rlog.DU.split)[,2],
+     cex=.1, main = "rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.DU.split[,1])),
+     ylab = colnames(assay(DESeq.rlog.DU.split[,2])) )
+
+DESeq.rlog.DU.split <- rlog(DESeq.ds.DU.split, blind = FALSE)
+
+plot(assay(DESeq.rlog.DU.split)[,1],
+     assay(DESeq.rlog.DU.split)[,2],
+     cex=.1, main = "rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.DU.split[,1])),
+     ylab = colnames(assay(DESeq.rlog.DU.split[,2])) )
+```
+
+
+
+```{r}
+## this actually generates a different type of object!
+DESeq.rlog.DU<- rlog(DESeq.ds.DU, blind = TRUE)
+DESeq.rlog.DU.split<- rlog(DESeq.ds.DU.split, blind = TRUE)
+
+## set blind = FALSE if the conditions are expected to introduce
+## strong differences in a large proportion of the genes
+
+```
+
+Let’s visually check the results of the rlog transformation:
+
+```{r}
+par(mfrow=c(2,2))
+
+plot(log.norm.counts.DU[,1:2], cex=.1,
+     main = "DU size factor and log2-transformed")
+
+## the rlog-transformed counts are stored in the accessor "assay"
+plot(assay(DESeq.rlog.DU)[,1],
+     assay(DESeq.rlog.DU)[,2],
+     cex=.1, main = "DU rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.DU[,1])),
+     ylab = colnames(assay(DESeq.rlog.DU[,2])) )
+
+plot(log.norm.counts.DU.split[,1:2], cex=.1,
+     main = "DU.split size factor and log2-transformed")
+
+## the rlog-transformed counts are stored in the accessor "assay"
+plot(assay(DESeq.rlog.DU.split)[,1],
+     assay(DESeq.rlog.DU.split)[,2],
+     cex=.1, main = "DU.split rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.DU.split[,1])),
+     ylab = colnames(assay(DESeq.rlog.DU.split[,2])) )
+```
+
+
+```{r}
+rlog.norm.counts.DU<- assay(DESeq.rlog.DU)
+rlog.norm.counts.DU.split <- assay(DESeq.rlog.DU.split)
+
+```
+
+
+```{r}
+## rlog-transformed read counts
+
+par(mfrow=c(1,2))
+
+msd_plot.DU <- vsn::meanSdPlot( rlog.norm.counts.DU, ranks=FALSE, plot = FALSE)
+
+msd_plot.DU$gg + ggtitle("DU Following rlog transformation") +
+  coord_cartesian(ylim = c(0,3))
+
+msd_plot.DU.split <- vsn::meanSdPlot( rlog.norm.counts.DU.split, ranks=FALSE, plot = FALSE)
+
+msd_plot.DU.split$gg + ggtitle("DU.split Following rlog transformation") +
+  coord_cartesian(ylim = c(0,3))
+```
+
+```{r}
+plotPCA(DESeq.rlog.DU,intgroup=c("condition", "celltype"))  + coord_cartesian()
+
+```
+```{r}
+plotPCA(DESeq.rlog.DU.split,intgroup=c("condition"))  + coord_cartesian()
+```
+
+
+
+### **DESeq.ds.PC**
+
+```{r}
+dim(DESeq.ds.PC)
+
+keep_genes.PC <- rowSums(counts(DESeq.ds.PC)) > 0
+DESeq.ds.PC <- DESeq.ds.PC[ keep_genes.PC, ]
+
+dim(DESeq.ds.PC)
+
+
+
+dim(DESeq.ds.PC.split)
+
+keep_genes.PC.split <- rowSums(counts(DESeq.ds.PC.split)) > 0
+DESeq.ds.PC.split <- DESeq.ds.PC.split[ keep_genes.PC.split, ]
+
+dim(DESeq.ds.PC.split)
+
+```
+
+
+
+```{r}
+
+par(mfrow=c(1,2))
+colSums(counts(DESeq.ds.PC)) %>% barplot
+colSums(counts(DESeq.ds.PC.split)) %>% barplot
+
+```
+
+
+```{r}
+par(mfrow=c(1,2))
+
+DESeq.ds.PC <- estimateSizeFactors(DESeq.ds.PC) # calculate SFs, add them to object
+plot( sizeFactors(DESeq.ds.PC), colSums(counts(DESeq.ds.PC)), # assess them
+      ylab = "library sizes", xlab = "size factors", cex = .6 )
+
+
+DESeq.ds.PC.split <- estimateSizeFactors(DESeq.ds.PC.split) # calculate SFs, add them to object
+plot( sizeFactors(DESeq.ds.PC.split), colSums(counts(DESeq.ds.PC.split)), # assess them
+      ylab = "library sizes", xlab = "size factors", cex = .6 )
+```
+
+
+```{r}
+## setting up the plotting layout
+par(mfrow=c(2,2))
+
+## extracting normalized counts
+counts.sf_normalized.PC <- counts(DESeq.ds.PC, normalized=TRUE)
+
+## adding the boxplots
+boxplot(counts.sf_normalized.PC, main = "PC SF normalized", cex = .6)
+boxplot(counts(DESeq.ds.PC), main = "PC read counts only", cex = .6)
+
+## extracting normalized counts
+counts.sf_normalized.PC.split <- counts(DESeq.ds.PC.split, normalized=TRUE)
+
+## adding the boxplots
+boxplot(counts.sf_normalized.PC.split, main = "PC.split SF normalized", cex = .6)
+boxplot(counts(DESeq.ds.PC.split), main = "PC.split read counts only", cex = .6)
+
+
+```
+
+
+```{r}
+par(mfrow=c(2,2)) # to plot the two box plots next to each other
+
+## bp of non-normalized
+boxplot(log2(counts(DESeq.ds.PC.split)+1), notch=TRUE,
+        main = "PC Non-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+
+## bp of size-factor normalized values
+boxplot(log2(counts(DESeq.ds.PC, normalize= TRUE) +1), notch=TRUE,
+        main = "PC Size-factor-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+
+## bp of non-normalized
+boxplot(log2(counts(DESeq.ds.PC.split)+1), notch=TRUE,
+        main = "PC Non-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+
+## bp of size-factor normalized values
+boxplot(log2(counts(DESeq.ds.PC.split, normalize= TRUE) +1), notch=TRUE,
+        main = "PC.split Size-factor-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+```
+
+```{r}
+## non-normalized read counts plus pseudocount
+log.counts.PC <- log2(counts(DESeq.ds.PC, normalized = FALSE) + 1)
+
+## instead of creating a new object, we could assign the values to a distinct matrix
+## within the DESeq.ds object
+assay(DESeq.ds.PC, "PC log.counts") <- log2(counts(DESeq.ds.PC, normalized = FALSE) + 1)
+
+## normalized read counts
+log.norm.counts.PC <- log2(counts(DESeq.ds.PC, normalized=TRUE) + 1)
+assay(DESeq.ds.PC, "PC log.norm.counts") <- log.norm.counts.PC
+
+## non-normalized read counts plus pseudocount
+log.counts.PC.split <- log2(counts(DESeq.ds.PC.split, normalized = FALSE) + 1)
+
+## instead of creating a new object, we could assign the values to a distinct matrix
+## within the DESeq.ds object
+assay(DESeq.ds.PC.split, "PC.split log.counts") <- log2(counts(DESeq.ds.PC.split, normalized = FALSE) + 1)
+
+## normalized read counts
+log.norm.counts.PC.split <- log2(counts(DESeq.ds.PC.split, normalized=TRUE) + 1)
+assay(DESeq.ds.PC.split, "PC.split log.norm.counts") <- log.norm.counts.PC.split
+```
+
+```{r}
+par(mfrow=c(2,2))
+
+DESeq.ds.PC[, c("WT_PC3_1","WT_PC3_2")] %>%
+  assay(., "PC log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs. WT_2")
+
+DESeq.ds.PC[, c("WT_PC3_1","SPINK1_PC3_1")] %>%
+  assay(., "PC log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs SPINK1_1")
+
+
+DESeq.ds.PC.split[, c("WT_PC3_1","WT_PC3_2")] %>%
+  assay(., "PC.split log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs. WT_2")
+
+DESeq.ds.PC.split[, c("WT_PC3_1","SPINK1_PC3_1")] %>%
+  assay(., "PC.split log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs SPINK1_1")
+```
+
+```{r}
+## generate the base meanSdPlot using sequencing depth normalized log2(read counts)
+log.norm.counts.PC <- log2(counts(DESeq.ds.PC, normalized=TRUE) + 1)
+log.norm.counts.PC.split <- log2(counts(DESeq.ds.PC.split, normalized=TRUE) + 1)
+
+## set up ploting frames
+par(mfrow=c(1,2))
+## generate the plot
+
+msd_plot.PC <- vsn::meanSdPlot(log.norm.counts.PC,
+                            ranks=FALSE, # show the data on the original scale
+                            plot = FALSE)
+## since vsn::meanSdPlot generates a ggplot2 object, this can be
+## manipulated in the usual ways
+
+msd_plot.PC$gg +
+  ggtitle("PC Sequencing depth normalized log2(read counts)") +
+  ylab("standard deviation")
+
+msd_plot.PC.split <- vsn::meanSdPlot(log.norm.counts.PC.split,
+                            ranks=FALSE, # show the data on the original scale
+                            plot = FALSE)
+## since vsn::meanSdPlot generates a ggplot2 object, this can be
+## manipulated in the usual ways
+
+msd_plot.PC.split$gg +
+  ggtitle("PC.split Sequencing depth normalized log2(read counts)") +
+  ylab("standard deviation")
+```
+
+```{r}
+par(mfrow=c(1,3))
+
+DESeq.rlog.PC <- rlog(DESeq.ds.PC, blind = TRUE)
+
+plot(assay(DESeq.rlog.PC)[,1],
+     assay(DESeq.rlog.PC)[,2],
+     cex=.1, main = "rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.PC[,1])),
+     ylab = colnames(assay(DESeq.rlog.PC[,2])) )
+
+
+
+DESeq.rlog.PC.split <- rlog(DESeq.ds.PC.split, blind = TRUE)
+
+plot(assay(DESeq.rlog.PC.split)[,1],
+     assay(DESeq.rlog.PC.split)[,2],
+     cex=.1, main = "rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.PC.split[,1])),
+     ylab = colnames(assay(DESeq.rlog.PC.split[,2])) )
+
+DESeq.rlog.PC.split <- rlog(DESeq.ds.PC.split, blind = FALSE)
+
+plot(assay(DESeq.rlog.PC.split)[,1],
+     assay(DESeq.rlog.PC.split)[,2],
+     cex=.1, main = "rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.PC.split[,1])),
+     ylab = colnames(assay(DESeq.rlog.PC.split[,2])) )
+```
+
+
+
+```{r}
+## this actually generates a different type of object!
+DESeq.rlog.PC<- rlog(DESeq.ds.PC, blind = TRUE)
+DESeq.rlog.PC.split<- rlog(DESeq.ds.PC.split, blind = TRUE)
+
+## set blind = FALSE if the conditions are expected to introPCce
+## strong differences in a large proportion of the genes
+
+```
+
+Let’s visually check the results of the rlog transformation:
+
+```{r}
+par(mfrow=c(2,2))
+
+plot(log.norm.counts.PC[,1:2], cex=.1,
+     main = "PC size factor and log2-transformed")
+
+## the rlog-transformed counts are stored in the accessor "assay"
+plot(assay(DESeq.rlog.PC)[,1],
+     assay(DESeq.rlog.PC)[,2],
+     cex=.1, main = "PC rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.PC[,1])),
+     ylab = colnames(assay(DESeq.rlog.PC[,2])) )
+
+plot(log.norm.counts.PC.split[,1:2], cex=.1,
+     main = "PC.split size factor and log2-transformed")
+
+## the rlog-transformed counts are stored in the accessor "assay"
+plot(assay(DESeq.rlog.PC.split)[,1],
+     assay(DESeq.rlog.PC.split)[,2],
+     cex=.1, main = "PC.split rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.PC.split[,1])),
+     ylab = colnames(assay(DESeq.rlog.PC.split[,2])) )
+```
+
+
+```{r}
+rlog.norm.counts.PC<- assay(DESeq.rlog.PC)
+rlog.norm.counts.PC.split <- assay(DESeq.rlog.PC.split)
+
+```
+
+
+```{r}
+## rlog-transformed read counts
+
+par(mfrow=c(1,2))
+
+msd_plot.PC <- vsn::meanSdPlot( rlog.norm.counts.PC, ranks=FALSE, plot = FALSE)
+
+msd_plot.PC$gg + ggtitle("PC Following rlog transformation") +
+  coord_cartesian(ylim = c(0,3))
+
+msd_plot.PC.split <- vsn::meanSdPlot( rlog.norm.counts.PC.split, ranks=FALSE, plot = FALSE)
+
+msd_plot.PC.split$gg + ggtitle("PC.split Following rlog transformation") +
+  coord_cartesian(ylim = c(0,3))
+```
+
+```{r}
+plotPCA(DESeq.rlog.PC,intgroup=c("condition", "celltype"))  + coord_cartesian()
+
+```
+
+```{r}
+plotPCA(DESeq.rlog.PC.split,intgroup=c("condition"))  + coord_cartesian()
+```
+
+### **DESeq.DU.filter**
+
+
+```{r}
+dim(DESeq.ds.DU)
+
+keep_genes.DU <- rowSums(counts(DESeq.ds.DU)) > 0
+DESeq.ds.DU <- DESeq.ds.DU[ keep_genes.DU, ]
+
+dim(DESeq.ds.DU)
+
+
+
+dim(DESeq.ds.DU.filter)
+
+keep_genes.DU.filter <- rowSums(counts(DESeq.ds.DU.filter)) > 0
+DESeq.ds.DU.filter <- DESeq.ds.DU.filter[ keep_genes.DU.filter, ]
+
+dim(DESeq.ds.DU.filter)
+
+```
+
+
+
+```{r}
+
+par(mfrow=c(1,2))
+colSums(counts(DESeq.ds.DU)) %>% barplot
+colSums(counts(DESeq.ds.DU.filter)) %>% barplot
+
+```
+
+
+```{r}
+par(mfrow=c(1,2))
+
+DESeq.ds.DU <- estimateSizeFactors(DESeq.ds.DU) # calculate SFs, add them to object
+plot( sizeFactors(DESeq.ds.DU), colSums(counts(DESeq.ds.DU)), # assess them
+      ylab = "library sizes", xlab = "size factors", cex = .6 )
+
+
+DESeq.ds.DU.filter <- estimateSizeFactors(DESeq.ds.DU.filter) # calculate SFs, add them to object
+plot( sizeFactors(DESeq.ds.DU.filter), colSums(counts(DESeq.ds.DU.filter)), # assess them
+      ylab = "library sizes", xlab = "size factors", cex = .6 )
+```
+
+
+```{r}
+## setting up the plotting layout
+par(mfrow=c(2,2))
+
+## extracting normalized counts
+counts.sf_normalized.DU <- counts(DESeq.ds.DU, normalized=TRUE)
+
+## adding the boxplots
+boxplot(counts.sf_normalized.DU, main = "DU SF normalized", cex = .6)
+boxplot(counts(DESeq.ds.DU), main = "DU read counts only", cex = .6)
+
+## extracting normalized counts
+counts.sf_normalized.DU.filter <- counts(DESeq.ds.DU.filter, normalized=TRUE)
+
+## adding the boxplots
+boxplot(counts.sf_normalized.DU.filter, main = "DU.filter SF normalized", cex = .6)
+boxplot(counts(DESeq.ds.DU.filter), main = "DU.filter read counts only", cex = .6)
+
+
+```
+
+
+```{r}
+par(mfrow=c(2,2)) # to plot the two box plots next to each other
+
+## bp of non-normalized
+boxplot(log2(counts(DESeq.ds.DU.filter)+1), notch=TRUE,
+        main = "DU Non-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+
+## bp of size-factor normalized values
+boxplot(log2(counts(DESeq.ds.DU, normalize= TRUE) +1), notch=TRUE,
+        main = "DU Size-factor-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+
+## bp of non-normalized
+boxplot(log2(counts(DESeq.ds.DU.filter)+1), notch=TRUE,
+        main = "DU.filter Non-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+
+## bp of size-factor normalized values
+boxplot(log2(counts(DESeq.ds.DU.filter, normalize= TRUE) +1), notch=TRUE,
+        main = "DU.filter Size-factor-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+```
+
+```{r}
+## non-normalized read counts plus pseudocount
+log.counts.DU <- log2(counts(DESeq.ds.DU, normalized = FALSE) + 1)
+
+## instead of creating a new object, we could assign the values to a distinct matrix
+## within the DESeq.ds object
+assay(DESeq.ds.DU, "DU log.counts") <- log2(counts(DESeq.ds.DU, normalized = FALSE) + 1)
+
+## normalized read counts
+log.norm.counts.DU <- log2(counts(DESeq.ds.DU, normalized=TRUE) + 1)
+assay(DESeq.ds.DU, "DU log.norm.counts") <- log.norm.counts.DU
+
+## non-normalized read counts plus pseudocount
+log.counts.DU.filter <- log2(counts(DESeq.ds.DU.filter, normalized = FALSE) + 1)
+
+## instead of creating a new object, we could assign the values to a distinct matrix
+## within the DESeq.ds object
+assay(DESeq.ds.DU.filter, "DU.filter log.counts") <- log2(counts(DESeq.ds.DU.filter, normalized = FALSE) + 1)
+
+## normalized read counts
+log.norm.counts.DU.filter <- log2(counts(DESeq.ds.DU.filter, normalized=TRUE) + 1)
+assay(DESeq.ds.DU.filter, "DU.filter log.norm.counts") <- log.norm.counts.DU.filter
+```
+
+```{r}
+par(mfrow=c(2,2))
+
+DESeq.ds.DU[, c("WT_DU145_1","WT_DU145_2")] %>%
+  assay(., "DU log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs. WT_2")
+
+DESeq.ds.DU[, c("WT_DU145_1","SPINK1_DU145_1")] %>%
+  assay(., "DU log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs SPINK1_1")
+
+
+DESeq.ds.DU.filter[, c("WT_DU145_1","WT_DU145_2")] %>%
+  assay(., "DU.filter log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs. WT_2")
+
+DESeq.ds.DU.filter[, c("WT_DU145_1","SPINK1_DU145_1")] %>%
+  assay(., "DU.filter log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs SPINK1_1")
+```
+
+```{r}
+## generate the base meanSdPlot using sequencing depth normalized log2(read counts)
+log.norm.counts.DU <- log2(counts(DESeq.ds.DU, normalized=TRUE) + 1)
+log.norm.counts.DU.filter <- log2(counts(DESeq.ds.DU.filter, normalized=TRUE) + 1)
+
+## set up ploting frames
+par(mfrow=c(1,2))
+## generate the plot
+
+msd_plot.DU <- vsn::meanSdPlot(log.norm.counts.DU,
+                            ranks=FALSE, # show the data on the original scale
+                            plot = FALSE)
+## since vsn::meanSdPlot generates a ggplot2 object, this can be
+## manipulated in the usual ways
+
+msd_plot.DU$gg +
+  ggtitle("DU Sequencing depth normalized log2(read counts)") +
+  ylab("standard deviation")
+
+msd_plot.DU.filter <- vsn::meanSdPlot(log.norm.counts.DU.filter,
+                            ranks=FALSE, # show the data on the original scale
+                            plot = FALSE)
+## since vsn::meanSdPlot generates a ggplot2 object, this can be
+## manipulated in the usual ways
+
+msd_plot.DU.filter$gg +
+  ggtitle("DU.filter Sequencing depth normalized log2(read counts)") +
+  ylab("standard deviation")
+```
+
+
+
+
+```{r}
+## this actually generates a different type of object!
+DESeq.rlog.DU<- rlog(DESeq.ds.DU, blind = TRUE)
+DESeq.rlog.DU.filter<- rlog(DESeq.ds.DU.filter, blind = TRUE)
+
+## set blind = FALSE if the conditions are expected to introduce
+## strong differences in a large proportion of the genes
+
+```
+
+Let’s visually check the results of the rlog transformation:
+
+```{r}
+par(mfrow=c(2,2))
+
+plot(log.norm.counts.DU[,1:2], cex=.1,
+     main = "DU size factor and log2-transformed")
+
+## the rlog-transformed counts are stored in the accessor "assay"
+plot(assay(DESeq.rlog.DU)[,1],
+     assay(DESeq.rlog.DU)[,2],
+     cex=.1, main = "DU rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.DU[,1])),
+     ylab = colnames(assay(DESeq.rlog.DU[,2])) )
+
+plot(log.norm.counts.DU.filter[,1:2], cex=.1,
+     main = "DU.filter size factor and log2-transformed")
+
+## the rlog-transformed counts are stored in the accessor "assay"
+plot(assay(DESeq.rlog.DU.filter)[,1],
+     assay(DESeq.rlog.DU.filter)[,2],
+     cex=.1, main = "DU.filter rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.DU.filter[,1])),
+     ylab = colnames(assay(DESeq.rlog.DU.filter[,2])) )
+```
+
+
+```{r}
+rlog.norm.counts.DU<- assay(DESeq.rlog.DU)
+rlog.norm.counts.DU.filter <- assay(DESeq.rlog.DU.filter)
+
+```
+
+
+```{r}
+## rlog-transformed read counts
+
+par(mfrow=c(1,2))
+
+msd_plot.DU <- vsn::meanSdPlot( rlog.norm.counts.DU, ranks=FALSE, plot = FALSE)
+
+msd_plot.DU$gg + ggtitle("DU Following rlog transformation") +
+  coord_cartesian(ylim = c(0,3))
+
+msd_plot.DU.filter <- vsn::meanSdPlot( rlog.norm.counts.DU.filter, ranks=FALSE, plot = FALSE)
+
+msd_plot.DU.filter$gg + ggtitle("DU.filter Following rlog transformation") +
+  coord_cartesian(ylim = c(0,3))
+```
+
+```{r}
+plotPCA(DESeq.rlog.DU,intgroup=c("condition", "celltype"))  + coord_cartesian()
+
+```
+
+```{r}
+plotPCA(DESeq.rlog.DU.filter,intgroup=c("condition"))  + coord_cartesian()
+```
+
+
+
+### **DESeq.PC.filter**
+
+
+```{r}
+dim(DESeq.ds.PC)
+
+keep_genes.PC <- rowSums(counts(DESeq.ds.PC)) > 0
+DESeq.ds.PC <- DESeq.ds.PC[ keep_genes.PC, ]
+
+dim(DESeq.ds.PC)
+
+
+
+dim(DESeq.ds.PC.filter)
+
+keep_genes.PC.filter <- rowSums(counts(DESeq.ds.PC.filter)) > 0
+DESeq.ds.PC.filter <- DESeq.ds.PC.filter[ keep_genes.PC.filter, ]
+
+dim(DESeq.ds.PC.filter)
+
+```
+
+
+
+```{r}
+
+par(mfrow=c(1,2))
+colSums(counts(DESeq.ds.PC)) %>% barplot
+colSums(counts(DESeq.ds.PC.filter)) %>% barplot
+
+```
+
+
+```{r}
+par(mfrow=c(1,2))
+
+DESeq.ds.PC <- estimateSizeFactors(DESeq.ds.PC) # calculate SFs, add them to object
+plot( sizeFactors(DESeq.ds.PC), colSums(counts(DESeq.ds.PC)), # assess them
+      ylab = "library sizes", xlab = "size factors", cex = .6 )
+
+
+DESeq.ds.PC.filter <- estimateSizeFactors(DESeq.ds.PC.filter) # calculate SFs, add them to object
+plot( sizeFactors(DESeq.ds.PC.filter), colSums(counts(DESeq.ds.PC.filter)), # assess them
+      ylab = "library sizes", xlab = "size factors", cex = .6 )
+```
+
+
+```{r}
+## setting up the plotting layout
+par(mfrow=c(2,2))
+
+## extracting normalized counts
+counts.sf_normalized.PC <- counts(DESeq.ds.PC, normalized=TRUE)
+
+## adding the boxplots
+boxplot(counts.sf_normalized.PC, main = "PC SF normalized", cex = .6)
+boxplot(counts(DESeq.ds.PC), main = "PC read counts only", cex = .6)
+
+## extracting normalized counts
+counts.sf_normalized.PC.filter <- counts(DESeq.ds.PC.filter, normalized=TRUE)
+
+## adding the boxplots
+boxplot(counts.sf_normalized.PC.filter, main = "PC.filter SF normalized", cex = .6)
+boxplot(counts(DESeq.ds.PC.filter), main = "PC.filter read counts only", cex = .6)
+
+
+```
+
+
+```{r}
+par(mfrow=c(2,2)) # to plot the two box plots next to each other
+
+## bp of non-normalized
+boxplot(log2(counts(DESeq.ds.PC.filter)+1), notch=TRUE,
+        main = "PC Non-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+
+## bp of size-factor normalized values
+boxplot(log2(counts(DESeq.ds.PC, normalize= TRUE) +1), notch=TRUE,
+        main = "PC Size-factor-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+
+## bp of non-normalized
+boxplot(log2(counts(DESeq.ds.PC.filter)+1), notch=TRUE,
+        main = "PC.filter Non-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+
+## bp of size-factor normalized values
+boxplot(log2(counts(DESeq.ds.PC.filter, normalize= TRUE) +1), notch=TRUE,
+        main = "PC.filter Size-factor-normalized read counts",
+        ylab="log2(read counts)", cex = .6)
+```
+
+```{r}
+## non-normalized read counts plus pseudocount
+log.counts.PC <- log2(counts(DESeq.ds.PC, normalized = FALSE) + 1)
+
+## instead of creating a new object, we could assign the values to a distinct matrix
+## within the DESeq.ds object
+assay(DESeq.ds.PC, "PC log.counts") <- log2(counts(DESeq.ds.PC, normalized = FALSE) + 1)
+
+## normalized read counts
+log.norm.counts.PC <- log2(counts(DESeq.ds.PC, normalized=TRUE) + 1)
+assay(DESeq.ds.PC, "PC log.norm.counts") <- log.norm.counts.PC
+
+## non-normalized read counts plus pseudocount
+log.counts.PC.filter <- log2(counts(DESeq.ds.PC.filter, normalized = FALSE) + 1)
+
+## instead of creating a new object, we could assign the values to a distinct matrix
+## within the DESeq.ds object
+assay(DESeq.ds.PC.filter, "PC.filter log.counts") <- log2(counts(DESeq.ds.PC.filter, normalized = FALSE) + 1)
+
+## normalized read counts
+log.norm.counts.PC.filter <- log2(counts(DESeq.ds.PC.filter, normalized=TRUE) + 1)
+assay(DESeq.ds.PC.filter, "PC.filter log.norm.counts") <- log.norm.counts.PC.filter
+```
+
+```{r}
+par(mfrow=c(2,2))
+
+DESeq.ds.PC[, c("WT_PC3_1","WT_PC3_2")] %>%
+  assay(., "PC log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs. WT_2")
+
+DESeq.ds.PC[, c("WT_PC3_1","SPINK1_PC3_1")] %>%
+  assay(., "PC log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs SPINK1_1")
+
+
+DESeq.ds.PC.filter[, c("WT_PC3_1","WT_PC3_2")] %>%
+  assay(., "PC.filter log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs. WT_2")
+
+DESeq.ds.PC.filter[, c("WT_PC3_1","SPINK1_PC3_1")] %>%
+  assay(., "PC.filter log.norm.counts") %>%
+  plot(., cex=.1, main = "WT_1 vs SPINK1_1")
+```
+
+```{r}
+## generate the base meanSdPlot using sequencing depth normalized log2(read counts)
+log.norm.counts.PC <- log2(counts(DESeq.ds.PC, normalized=TRUE) + 1)
+log.norm.counts.PC.filter <- log2(counts(DESeq.ds.PC.filter, normalized=TRUE) + 1)
+
+## set up ploting frames
+par(mfrow=c(1,2))
+## generate the plot
+
+msd_plot.PC <- vsn::meanSdPlot(log.norm.counts.PC,
+                            ranks=FALSE, # show the data on the original scale
+                            plot = FALSE)
+## since vsn::meanSdPlot generates a ggplot2 object, this can be
+## manipulated in the usual ways
+
+msd_plot.PC$gg +
+  ggtitle("PC Sequencing depth normalized log2(read counts)") +
+  ylab("standard deviation")
+
+msd_plot.PC.filter <- vsn::meanSdPlot(log.norm.counts.PC.filter,
+                            ranks=FALSE, # show the data on the original scale
+                            plot = FALSE)
+## since vsn::meanSdPlot generates a ggplot2 object, this can be
+## manipulated in the usual ways
+
+msd_plot.PC.filter$gg +
+  ggtitle("PC.filter Sequencing depth normalized log2(read counts)") +
+  ylab("standard deviation")
+```
+
+
+```{r}
+## this actually generates a different type of object!
+DESeq.rlog.PC<- rlog(DESeq.ds.PC, blind = TRUE)
+DESeq.rlog.PC.filter<- rlog(DESeq.ds.PC.filter, blind = TRUE)
+
+## set blind = FALSE if the conditions are expected to introPCce
+## strong differences in a large proportion of the genes
+
+```
+
+Let’s visually check the results of the rlog transformation:
+
+```{r}
+par(mfrow=c(2,2))
+
+plot(log.norm.counts.PC[,1:2], cex=.1,
+     main = "PC size factor and log2-transformed")
+
+## the rlog-transformed counts are stored in the accessor "assay"
+plot(assay(DESeq.rlog.PC)[,1],
+     assay(DESeq.rlog.PC)[,2],
+     cex=.1, main = "PC rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.PC[,1])),
+     ylab = colnames(assay(DESeq.rlog.PC[,2])) )
+
+plot(log.norm.counts.PC.filter[,1:2], cex=.1,
+     main = "PC.filter size factor and log2-transformed")
+
+## the rlog-transformed counts are stored in the accessor "assay"
+plot(assay(DESeq.rlog.PC.filter)[,1],
+     assay(DESeq.rlog.PC.filter)[,2],
+     cex=.1, main = "PC.filter rlog transformed",
+     xlab = colnames(assay(DESeq.rlog.PC.filter[,1])),
+     ylab = colnames(assay(DESeq.rlog.PC.filter[,2])) )
+```
+
+
+```{r}
+rlog.norm.counts.PC<- assay(DESeq.rlog.PC)
+rlog.norm.counts.PC.filter <- assay(DESeq.rlog.PC.filter)
+
+```
+
+
+```{r}
+## rlog-transformed read counts
+
+par(mfrow=c(1,2))
+
+msd_plot.PC <- vsn::meanSdPlot( rlog.norm.counts.PC, ranks=FALSE, plot = FALSE)
+
+msd_plot.PC$gg + ggtitle("PC Following rlog transformation") +
+  coord_cartesian(ylim = c(0,3))
+
+msd_plot.PC.filter <- vsn::meanSdPlot( rlog.norm.counts.PC.filter, ranks=FALSE, plot = FALSE)
+
+msd_plot.PC.filter$gg + ggtitle("PC.filter Following rlog transformation") +
+  coord_cartesian(ylim = c(0,3))
+```
+
+```{r}
+plotPCA(DESeq.rlog.PC,intgroup=c("condition", "celltype"))  + coord_cartesian()
+
+```
+
+```{r}
+plotPCA(DESeq.rlog.PC.filter,intgroup=c("condition"))  + coord_cartesian()
+```
+
+```{r}
+save.image(file = "DESeq_processing.RData")
+```
+
